@@ -1,0 +1,68 @@
+{
+	"name": "@cosmixclub/parsero",
+	"version": "0.1.0",
+	"description": "Construtor de agentes de IA de maneira simplificada.",
+	"author": "Gepetojj <contato.gepetojj@gmail.com>",
+	"license": "MIT",
+	"main": "dist/index.js",
+	"packageManager": "pnpm@9.15.1",
+	"keywords": [
+		"ai",
+		"langchain",
+    "langgraph"
+	],
+	"homepage": "https://github.com/cosmixclub/parsero",
+	"bugs": {
+		"url": "https://github.com/cosmixclub/parsero/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/cosmixclub/parsero.git"
+	},
+	"files": [
+		"dist"
+	],
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		"./package.json": "./package.json",
+		".": {
+			"import": "./dist/index.js",
+			"default": "./dist/index.cjs"
+		}
+	},
+	"scripts": {
+		"ci": "pnpm build && pnpm check-format && pnpm check-exports",
+		"build": "tsup",
+		"lint": "eslint --fix .",
+		"format": "prettier --write .",
+		"check-format": "prettier --check .",
+		"commit": "git cz",
+		"check-exports": "attw --pack .",
+		"local-release": "changeset version && changeset publish",
+		"prepublishOnly": "pnpm run ci"
+	},
+	"devDependencies": {
+		"@arethetypeswrong/cli": "^0.17.2",
+		"@changesets/cli": "^2.27.11",
+		"@trivago/prettier-plugin-sort-imports": "^5.2.0",
+		"@types/node": "^22.10.2",
+		"@typescript-eslint/eslint-plugin": "^8.18.2",
+		"@typescript-eslint/parser": "^8.18.2",
+		"@vercel/style-guide": "^6.0.0",
+		"commitizen": "^4.3.1",
+		"cz-conventional-changelog": "^3.3.0",
+		"eslint": "8.57.1",
+		"eslint-config-prettier": "^9.1.0",
+		"eslint-plugin-perfectionist": "^4.4.0",
+		"eslint-plugin-prettier": "^5.2.1",
+		"prettier": "^3.4.2",
+		"tsup": "^8.3.5",
+		"typescript": "^5.7.2"
+	},
+	"config": {
+		"commitizen": {
+			"path": "./node_modules/cz-conventional-changelog"
+		}
+	}
+}
