@@ -50,7 +50,8 @@
 	"dependencies": {
 		"@langchain/community": "^0.3.20",
 		"@langchain/core": "0.3.26",
-		"@langchain/langgraph": "^0.2.36"
+		"@langchain/langgraph": "^0.2.36",
+		"zod": "^3.24.1"
 	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.17.2",
@@ -69,6 +70,7 @@
 		"eslint-plugin-prettier": "^5.2.1",
 		"prettier": "^3.4.2",
 		"tsup": "^8.3.5",
+		"tsx": "^4.19.2",
 		"typescript": "^5.7.2"
 	},
 	"config": {
