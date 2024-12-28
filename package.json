@@ -9,7 +9,7 @@
 	"keywords": [
 		"ai",
 		"langchain",
-    "langgraph"
+		"langgraph"
 	],
 	"homepage": "https://github.com/cosmixclub/parsero",
 	"bugs": {
@@ -42,9 +42,20 @@
 		"local-release": "changeset version && changeset publish",
 		"prepublishOnly": "pnpm run ci"
 	},
+	"pnpm": {
+		"overrides": {
+			"@langchain/core": "0.3.26"
+		}
+	},
+	"dependencies": {
+		"@langchain/community": "^0.3.20",
+		"@langchain/core": "0.3.26",
+		"@langchain/langgraph": "^0.2.36"
+	},
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.17.2",
 		"@changesets/cli": "^2.27.11",
+		"@langchain/openai": "^0.3.16",
 		"@trivago/prettier-plugin-sort-imports": "^5.2.0",
 		"@types/node": "^22.10.2",
 		"@typescript-eslint/eslint-plugin": "^8.18.2",
