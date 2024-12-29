@@ -5,6 +5,7 @@ import { StateValuesFormat } from "./state";
 export interface ActionProcedure<StateValues extends StateValuesFormat> {
 	name: string;
 	type: "action";
+	nextProcedure?: string;
 
 	run(state: StateValues, llm: BaseChatModel): Promise<StateValues>;
 }

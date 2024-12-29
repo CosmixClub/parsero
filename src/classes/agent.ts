@@ -3,7 +3,7 @@ import { z } from "zod";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 
-import { Procedure } from "./procedure";
+import { ActionProcedure, Procedure } from "./procedure";
 import { State } from "./state";
 
 export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> {
@@ -91,6 +91,19 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 		if (duplicateNames.length > 0) throw new Error("Os nomes dos procedimentos devem ser distintos.");
 	}
 
+	private validateProcedureChain() {
+		const hasCheckProcedure = this.props.procedures.some(p => p.type === "check");
+		const allActionProceduresDeclareNext = this.props.procedures
+			.filter(p => p.type === "action")
+			.every(p => p.nextProcedure);
+
+		if (hasCheckProcedure && !allActionProceduresDeclareNext) {
+			throw new Error(
+				"Quando houver um procedimento do tipo 'check', todos os procedimentos do tipo 'action' devem declarar o próximo procedimento.",
+			);
+		}
+	}
+
 	get graph() {
 		return this._langgraphGraphBuilder();
 	}
@@ -101,12 +114,41 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 		this.props.state.setInput(inputParsed.data);
 
 		this.validateProcedureNames();
+		this.validateProcedureChain();
 
-		for (const procedure of this.props.procedures) {
-			if (procedure.type === "action") {
-				const values = await procedure.run(this.props.state.values, this.props.llm);
+		// Cria um Map de procedures para se aproveitar da eficiência e popula o grafo
+		const procedureMap = new Map<string, Procedure<State<Input, Output>["values"]>>();
+		for (const proc of this.props.procedures) procedureMap.set(proc.name, proc);
+
+		let currentProcedure: Procedure<State<Input, Output>["values"]> | null = this.props.procedures[0];
+
+		while (currentProcedure) {
+			if (currentProcedure.type === "action") {
+				const values = await currentProcedure.run(this.props.state.values, this.props.llm);
 				this.props.state.setInput(values.input);
 				this.props.state.setOutput(values.output);
+
+				if (currentProcedure.nextProcedure === END) break;
+
+				// Caso a procedure de ação tenha nextProcedure definido pula para ele
+				if (currentProcedure.nextProcedure) {
+					const next = procedureMap.get(currentProcedure.nextProcedure);
+					currentProcedure = next ?? null;
+					continue;
+				}
+
+				// Caso a procedure de ação não tenha nextProcedure definido,
+				// podemos simplesmente partir para a próxima procedure na lista
+				const currentIndex = this.props.procedures.findIndex(p => p.name === currentProcedure?.name);
+				const nextProc = this.props.procedures[currentIndex + 1];
+				currentProcedure = nextProc ?? null;
+			} else if (currentProcedure.type === "check") {
+				// Procedures do tipo check devem retornar o nome do procedimento seguinte
+				// Pegamos o nome e vamos até ele se existir. Se não existir, break
+				const nextProcedure = await currentProcedure.run(this.props.state.values, this.props.llm);
+				if (!nextProcedure || nextProcedure === END) break;
+				const next = procedureMap.get(nextProcedure);
+				currentProcedure = next ?? null;
 			}
 		}
 
