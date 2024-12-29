@@ -7,25 +7,84 @@ import { AgentToLanggraph } from "./internal/agent-to-langgraph";
 import { Procedure } from "./procedure";
 import { State } from "./state";
 
+/**
+ * Representa um agente de IA que processa uma sequência de {@link Procedure|Procedures}.
+ *
+ * A classe `Agent` é responsável por receber um estado, um conjunto de `Procedure`
+ * e um modelo de linguagem (LLM), para então executar passos (Procedures) de forma
+ * sequencial ou customizada (usando `nextProcedure` e/ou `CheckProcedure`). Existem dois tipos principais de `Procedure`:
+ *
+ * - **ActionProcedure**: Recebe e **altera** o estado do agente, realizando mutações
+ *   e computações necessárias.
+ * - **CheckProcedure**: Recebe o estado do agente, **não o altera**, e retorna um
+ *   **nome** de próxima procedure que será executada.
+ *
+ * @template Input - Schema Zod para o estado de entrada
+ * @template Output - Schema Zod para o estado de saída
+ */
 export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> {
 	constructor(
 		private readonly props: {
+			/**
+			 * Instância de {@link State} que contém os schemas de entrada/saída e o estado do agente
+			 */
 			state: State<Input, Output>;
+
+			/**
+			 * Lista de {@link Procedure} que serão executadas pelo agente
+			 */
 			procedures: Procedure<State<Input, Output>["values"]>[];
+
+			/**
+			 * Modelo de linguagem que será utilizado pelas procedures. Deve ser um `ChatModel` do LangChain.
+			 *
+			 * @see {@link https://js.langchain.com/docs/concepts/chat_models} Saiba mais sobre `ChatModel` do LangChain.
+			 *
+			 * @example
+			 * new ChatOpenAI()
+			 * new ChatGoogleGenerativeAI()
+			 *
+			 */
 			llm: BaseChatModel;
+
+			/**
+			 * Opções adicionais
+			 */
 			options?: {
+				/**
+				 * Se `true`, habilita logs de execução
+				 */
 				verbose?: boolean;
+
+				/**
+				 * Número máximo de iterações para evitar loops infinitos. Padrão: 100 iterações (use `Infinity` para desabilitar o limite)
+				 */
 				maxIterations?: number;
 			};
 		},
 	) {}
 
+	/**
+	 * Verifica se todos os nomes de procedures são únicos, lançando um erro caso haja duplicados.
+	 *
+	 * @throws {Error} - Se forem detectados nomes duplicados.
+	 * @private
+	 */
 	private validateProcedureNames() {
 		const procedureNames = this.props.procedures.map(p => p.name);
 		const duplicateNames = procedureNames.filter((name, index) => procedureNames.indexOf(name) !== index);
 		if (duplicateNames.length > 0) throw new Error("Os nomes dos procedimentos devem ser distintos.");
 	}
 
+	/**
+	 * Verifica a consistência da cadeia de procedures:
+	 * 1. Se existe ao menos uma procedure do tipo `check`.
+	 * 2. Se todas as procedures do tipo `action` que fazem parte de uma cadeia
+	 *    com `check` declaram o `nextProcedure`.
+	 *
+	 * @throws {Error} - Se for detectada inconsistência na declaração de procedures.
+	 * @private
+	 */
 	private validateProcedureChain() {
 		const hasCheckProcedure = this.props.procedures.some(p => p.type === "check");
 		const allActionProceduresDeclareNext = this.props.procedures
@@ -39,6 +98,14 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 		}
 	}
 
+	/**
+	 * Retorna o grafo do agente usando o LangGraph. Útil para casos de uso mais complexos
+	 * que a biblioteca não forneça suporte nativo.
+	 *
+	 * @see {@link https://langchain-ai.github.io/langgraphjs/} Saiba mais sobre o LangGraph na documentação oficial.
+	 *
+	 * @returns `StateGraph` compilado do LangGraph baseado nas procedures e no estado do agente.
+	 */
 	get graph() {
 		const langgraph = new AgentToLanggraph({
 			state: this.props.state,
@@ -48,6 +115,18 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 		return langgraph.build();
 	}
 
+	/**
+	 * Executa o agente, processando as {@link Procedure|Procedures} até chegar em um fim.
+	 *
+	 * 1. Faz o parse do input inicial de acordo com o schema de entrada.
+	 * 2. Valida a lista e a cadeia de procedures.
+	 * 3. Executa cada procedure (action ou check) em loop até atingir um `END` ou o fim da lista.
+	 * 4. Faz o parse do output final de acordo com o schema de saída.
+	 *
+	 * @param input - Dados de entrada que seguem o schema definido em `State`.
+	 * @returns Dados de saída que seguem o schema definido em `State`.
+	 * @throws {Error} - Caso o input ou o output não siga o schema ou se ultrapassar o número máximo de iterações.
+	 */
 	async run(input: z.infer<Input>): Promise<z.infer<Output>> {
 		const inputParsed = this.props.state.parseInput(input);
 		if (!inputParsed.success) throw new Error("O input recebido não segue o schema.");
