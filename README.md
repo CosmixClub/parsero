@@ -14,7 +14,7 @@
     - [Exemplos](#exemplos)
         - [Exemplo 1: CheckProcedure customizando a ordem de execução](#exemplo-1-checkprocedure-customizando-a-ordem-de-execução)
         - [Exemplo 2: Fluxo sequencial **sem** `CheckProcedure` e **sem** `nextProcedure`](#exemplo-2-fluxo-sequencial-sem-checkprocedure-e-sem-nextprocedure)
-        - [Exemplo 3: Fluxo personalizado com **Action** e `nextProcedure`](#exemplo-3-fluxo-personalizado-com-action-e-nextprocedure)
+        - [Exemplo 3: Fluxo personalizado com `nextProcedure`](#exemplo-3-fluxo-personalizado-com-nextprocedure)
 
 ---
 
@@ -75,10 +75,11 @@ No exemplo abaixo, o agente:
 3. **Executa** a procedure correspondente a par ou ímpar (action).
 
 ```ts
-import { ChatOpenAI, StringOutputParser } from "langchain/chat_models";
 import { z } from "zod";
 
 import { Agent, END, State } from "@cosmixclub/parsero";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { ChatOpenAI } from "@langchain/openai";
 
 // exemplificando, pois depende do seu setup
 
@@ -176,10 +177,10 @@ console.log(output);
 O exemplo abaixo mostra um fluxo **estritamente sequencial**, onde cada procedure de tipo `action` é executada na **ordem** em que foi definida. Assim que uma procedure termina, o agente avança para a próxima.
 
 ```ts
-import { ChatOpenAI } from "langchain/chat_models";
 import { z } from "zod";
 
 import { Agent, State } from "@cosmixclub/parsero";
+import { ChatOpenAI } from "@langchain/openai";
 
 const agent = new Agent({
 	state: new State({
@@ -224,14 +225,15 @@ console.log(output);
 
 ---
 
-### Exemplo 3: Fluxo personalizado com **Action** e `nextProcedure`
+### Exemplo 3: Fluxo personalizado com `nextProcedure`
 
 Caso você queira **controlar a ordem** entre procedures de modo mais explícito (sem `check`), basta utilizar a propriedade `nextProcedure` em uma `ActionProcedure`.
 
 ```ts
-import { ChatOpenAI } from "langchain/chat_models";
-import { Agent, END, State } from "parsero";
 import { z } from "zod";
+
+import { Agent, END, State } from "@cosmixclub/parsero";
+import { ChatOpenAI } from "@langchain/openai";
 
 const agent = new Agent({
 	state: new State({
