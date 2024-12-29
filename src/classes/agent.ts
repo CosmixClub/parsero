@@ -3,6 +3,9 @@ import { z } from "zod";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { END } from "@langchain/langgraph";
 
+import { ProcedureChainError } from "../errors/procedure-chain";
+import { ProcedureNameError } from "../errors/procedure-name";
+import { StateValidationError } from "../errors/state-validation";
 import { AgentToLanggraph } from "./internal/agent-to-langgraph";
 import { Procedure } from "./procedure";
 import { State } from "./state";
@@ -67,13 +70,15 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	/**
 	 * Verifica se todos os nomes de procedures são únicos, lançando um erro caso haja duplicados.
 	 *
-	 * @throws {Error} - Se forem detectados nomes duplicados.
+	 * @throws {ProcedureNameError} - Se forem detectados nomes duplicados.
 	 * @private
 	 */
 	private validateProcedureNames() {
 		const procedureNames = this.props.procedures.map(p => p.name);
 		const duplicateNames = procedureNames.filter((name, index) => procedureNames.indexOf(name) !== index);
-		if (duplicateNames.length > 0) throw new Error("Os nomes dos procedimentos devem ser distintos.");
+		if (duplicateNames.length > 0) {
+			throw new ProcedureNameError("Os nomes dos procedimentos devem ser distintos.", duplicateNames);
+		}
 	}
 
 	/**
@@ -82,7 +87,7 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	 * 2. Se todas as procedures do tipo `action` que fazem parte de uma cadeia
 	 *    com `check` declaram o `nextProcedure`.
 	 *
-	 * @throws {Error} - Se for detectada inconsistência na declaração de procedures.
+	 * @throws {ProcedureChainError} - Se for detectada inconsistência na declaração de procedures.
 	 * @private
 	 */
 	private validateProcedureChain() {
@@ -92,7 +97,7 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 			.every(p => p.nextProcedure);
 
 		if (hasCheckProcedure && !allActionProceduresDeclareNext) {
-			throw new Error(
+			throw new ProcedureChainError(
 				"Quando houver um procedimento do tipo 'check', todos os procedimentos do tipo 'action' devem declarar o próximo procedimento.",
 			);
 		}
@@ -125,11 +130,12 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	 *
 	 * @param input - Dados de entrada que seguem o schema definido em `State`.
 	 * @returns Dados de saída que seguem o schema definido em `State`.
-	 * @throws {Error} - Caso o input ou o output não siga o schema ou se ultrapassar o número máximo de iterações.
+	 * @throws {StateValidationError} - Caso o input ou o output não siga o schema.
+	 * @throws {ProcedureChainError} - Caso a cadeia de procedures ultrapassar o número máximo de iterações.
 	 */
 	async run(input: z.infer<Input>): Promise<z.infer<Output>> {
 		const inputParsed = this.props.state.parseInput(input);
-		if (!inputParsed.success) throw new Error("O input recebido não segue o schema.");
+		if (!inputParsed.success) throw new StateValidationError("O input recebido não segue o schema.");
 		this.props.state.setInput(inputParsed.data);
 
 		this.validateProcedureNames();
@@ -144,7 +150,7 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 
 		while (currentProcedure) {
 			if (iteration++ >= (this.props.options?.maxIterations || 100)) {
-				throw new Error(
+				throw new ProcedureChainError(
 					`O agente atingiu o limite máximo de ${this.props.options?.maxIterations || 100} iterações. Possível loop detectado no grafo.`,
 				);
 			}
@@ -181,7 +187,7 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 		}
 
 		const outputParsed = this.props.state.parseOutput(this.props.state.values.output);
-		if (!outputParsed.success) throw new Error("O output gerado não segue o schema.");
+		if (!outputParsed.success) throw new StateValidationError("O output gerado não segue o schema.");
 		return outputParsed.data;
 	}
 }
