@@ -13,6 +13,10 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 			state: State<Input, Output>;
 			procedures: Procedure<State<Input, Output>["values"]>[];
 			llm: BaseChatModel;
+			options?: {
+				verbose?: boolean;
+				maxIterations?: number;
+			};
 		},
 	) {}
 
@@ -57,8 +61,17 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 		for (const proc of this.props.procedures) procedureMap.set(proc.name, proc);
 
 		let currentProcedure: Procedure<State<Input, Output>["values"]> | null = this.props.procedures[0];
+		let iteration = 0;
 
 		while (currentProcedure) {
+			if (iteration++ >= (this.props.options?.maxIterations || 100)) {
+				throw new Error(
+					`O agente atingiu o limite máximo de ${this.props.options?.maxIterations || 100} iterações. Possível loop detectado no grafo.`,
+				);
+			}
+
+			if (this.props.options?.verbose) console.log(`[Agente] Iteração ${iteration}: ${currentProcedure.name}`);
+
 			if (currentProcedure.type === "action") {
 				const values = await currentProcedure.run(this.props.state.values, this.props.llm);
 				this.props.state.setInput(values.input);

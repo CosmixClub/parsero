@@ -28,6 +28,9 @@ const agent = new Agent({
 		cache: true,
 		apiKey: process.env.OPENAI_API_KEY,
 	}),
+	options: {
+		verbose: true,
+	},
 	procedures: [
 		{
 			name: "whatNumberIs",
@@ -84,7 +87,7 @@ const agent = new Agent({
 
 (async () => {
 	const output = await agent.run({ number: 11 });
-	console.log(output);
+	console.log(output.explanation);
 })();
 
 // (async () => {
