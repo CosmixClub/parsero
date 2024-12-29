@@ -98,15 +98,15 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	async run(input: z.infer<Input>): Promise<z.infer<Output>> {
 		const inputParsed = this.props.state.parseInput(input);
 		if (!inputParsed.success) throw new Error("O input recebido não segue o schema.");
-		this.props.state.values.setInput(inputParsed.data);
+		this.props.state.setInput(inputParsed.data);
 
 		this.validateProcedureNames();
 
 		for (const procedure of this.props.procedures) {
 			if (procedure.type === "action") {
 				const values = await procedure.run(this.props.state.values, this.props.llm);
-				this.props.state.values.setInput(values.input);
-				this.props.state.values.setOutput(values.output);
+				this.props.state.setInput(values.input);
+				this.props.state.setOutput(values.output);
 			}
 		}
 

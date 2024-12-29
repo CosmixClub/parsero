@@ -2,9 +2,9 @@ import type { z } from "zod";
 
 export type StateValuesFormat = {
 	input: any;
-	setInput: (input: any) => void;
+	// setInput: (input: any) => void;
 	output: any;
-	setOutput: (output: any) => void;
+	// setOutput: (output: any) => void;
 };
 
 export class State<Input extends z.AnyZodObject, Output extends z.AnyZodObject> {
@@ -32,9 +32,9 @@ export class State<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	get values() {
 		return {
 			input: this._runtime.input,
-			setInput: (input: z.infer<Input>) => (this._runtime.input = input),
+			// setInput: (input: z.infer<Input>) => (this._runtime.input = input),
 			output: this._runtime.output,
-			setOutput: (output: z.infer<Output>) => (this._runtime.output = output),
+			// setOutput: (output: z.infer<Output>) => (this._runtime.output = output),
 		};
 	}
 
@@ -44,6 +44,14 @@ export class State<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 
 	parseOutput(output: any) {
 		return this.props.outputSchema.safeParse(output);
+	}
+
+	setInput(input: z.infer<Input>) {
+		this._runtime.input = input;
+	}
+
+	setOutput(output: z.infer<Output>) {
+		this._runtime.output = output;
 	}
 
 	static valuesToLanggraph(values: StateValuesFormat) {
