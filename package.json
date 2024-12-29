@@ -1,13 +1,13 @@
 {
 	"name": "@cosmixclub/parsero",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"description": "Construtor de agentes de IA de maneira simplificada.",
 	"author": "Gepetojj <contato.gepetojj@gmail.com>",
 	"license": "MIT",
 	"main": "dist/index.js",
-	"packageManager": "pnpm@9.15.1",
+	"packageManager": "pnpm@9.15.2",
 	"keywords": [
-		"ai",
+		"crewai",
 		"langchain",
 		"langgraph"
 	],
@@ -48,7 +48,6 @@
 		}
 	},
 	"dependencies": {
-		"@langchain/community": "^0.3.20",
 		"@langchain/core": "0.3.26",
 		"@langchain/langgraph": "^0.2.36",
 		"zod": "^3.24.1"
@@ -56,6 +55,7 @@
 	"devDependencies": {
 		"@arethetypeswrong/cli": "^0.17.2",
 		"@changesets/cli": "^2.27.11",
+		"@langchain/community": "^0.3.20",
 		"@langchain/openai": "^0.3.16",
 		"@trivago/prettier-plugin-sort-imports": "^5.2.0",
 		"@types/node": "^22.10.2",
