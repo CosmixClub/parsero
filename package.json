@@ -5,7 +5,7 @@
 	"author": "Gepetojj <contato.gepetojj@gmail.com>",
 	"license": "MIT",
 	"main": "dist/index.js",
-	"packageManager": "pnpm@9.15.2",
+	"packageManager": "pnpm@10.8.0",
 	"keywords": [
 		"crewai",
 		"langchain",
@@ -44,35 +44,38 @@
 	},
 	"pnpm": {
 		"overrides": {
-			"@langchain/core": "0.3.26"
-		}
+			"@langchain/core": "0.3.44"
+		},
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
 	},
 	"dependencies": {
-		"@langchain/core": "0.3.26",
-		"@langchain/langgraph": "^0.2.36",
-		"zod": "^3.24.1"
+		"@langchain/core": "0.3.44",
+		"@langchain/langgraph": "^0.2.63",
+		"zod": "^3.24.2"
 	},
 	"devDependencies": {
-		"@arethetypeswrong/cli": "^0.17.2",
-		"@changesets/cli": "^2.27.11",
-		"@langchain/community": "^0.3.20",
-		"@langchain/openai": "^0.3.16",
-		"@trivago/prettier-plugin-sort-imports": "^5.2.0",
-		"@types/node": "^22.10.2",
-		"@typescript-eslint/eslint-plugin": "^8.18.2",
-		"@typescript-eslint/parser": "^8.18.2",
+		"@arethetypeswrong/cli": "^0.17.4",
+		"@changesets/cli": "^2.28.1",
+		"@langchain/community": "^0.3.40",
+		"@langchain/openai": "^0.5.5",
+		"@trivago/prettier-plugin-sort-imports": "^5.2.2",
+		"@types/node": "^22.14.1",
+		"@typescript-eslint/eslint-plugin": "^8.29.1",
+		"@typescript-eslint/parser": "^8.29.1",
 		"@vercel/style-guide": "^6.0.0",
 		"commitizen": "^4.3.1",
 		"cz-conventional-changelog": "^3.3.0",
-		"dotenv": "^16.4.7",
+		"dotenv": "^16.5.0",
 		"eslint": "8.57.1",
 		"eslint-config-prettier": "^9.1.0",
-		"eslint-plugin-perfectionist": "^4.4.0",
-		"eslint-plugin-prettier": "^5.2.1",
-		"prettier": "^3.4.2",
-		"tsup": "^8.3.5",
-		"tsx": "^4.19.2",
-		"typescript": "^5.7.2"
+		"eslint-plugin-perfectionist": "^4.11.0",
+		"eslint-plugin-prettier": "^5.2.6",
+		"prettier": "^3.5.3",
+		"tsup": "^8.4.0",
+		"tsx": "^4.19.3",
+		"typescript": "^5.8.3"
 	},
 	"config": {
 		"commitizen": {
