@@ -32,7 +32,7 @@
 		}
 	},
 	"scripts": {
-		"ci": "pnpm build && pnpm check-format && pnpm check-exports",
+		"ci": "pnpm build && pnpm check-format && pnpm check-exports && pnpm test",
 		"build": "tsup",
 		"lint": "eslint --fix .",
 		"format": "prettier --write .",
@@ -40,7 +40,11 @@
 		"commit": "git cz",
 		"check-exports": "attw --pack .",
 		"local-release": "changeset version && changeset publish",
-		"prepublishOnly": "pnpm run ci"
+		"prepublishOnly": "pnpm run ci",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"test:ui": "vitest --ui"
 	},
 	"pnpm": {
 		"overrides": {
@@ -65,6 +69,8 @@
 		"@typescript-eslint/eslint-plugin": "^8.29.1",
 		"@typescript-eslint/parser": "^8.29.1",
 		"@vercel/style-guide": "^6.0.0",
+		"@vitest/coverage-v8": "^3.1.1",
+		"@vitest/ui": "^3.1.1",
 		"commitizen": "^4.3.1",
 		"cz-conventional-changelog": "^3.3.0",
 		"dotenv": "^16.5.0",
@@ -75,7 +81,8 @@
 		"prettier": "^3.5.3",
 		"tsup": "^8.4.0",
 		"tsx": "^4.19.3",
-		"typescript": "^5.8.3"
+		"typescript": "^5.8.3",
+		"vitest": "^3.1.1"
 	},
 	"config": {
 		"commitizen": {

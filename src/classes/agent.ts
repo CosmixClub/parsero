@@ -29,16 +29,6 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	constructor(
 		private readonly props: {
 			/**
-			 * Instância de {@link State} que contém os schemas de entrada/saída e o estado do agente
-			 */
-			state: State<Input, Output>;
-
-			/**
-			 * Lista de {@link Procedure} que serão executadas pelo agente
-			 */
-			procedures: Procedure<State<Input, Output>["values"]>[];
-
-			/**
 			 * Modelo de linguagem que será utilizado pelas procedures. Deve ser um `ChatModel` do LangChain.
 			 *
 			 * @see {@link https://js.langchain.com/docs/concepts/chat_models} Saiba mais sobre `ChatModel` do LangChain.
@@ -55,15 +45,25 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 			 */
 			options?: {
 				/**
-				 * Se `true`, habilita logs de execução
-				 */
-				verbose?: boolean;
-
-				/**
 				 * Número máximo de iterações para evitar loops infinitos. Padrão: 100 iterações (use `Infinity` para desabilitar o limite)
 				 */
 				maxIterations?: number;
+
+				/**
+				 * Se `true`, habilita logs de execução
+				 */
+				verbose?: boolean;
 			};
+
+			/**
+			 * Lista de {@link Procedure} que serão executadas pelo agente
+			 */
+			procedures: Procedure<State<Input, Output>["values"]>[];
+
+			/**
+			 * Instância de {@link State} que contém os schemas de entrada/saída e o estado do agente
+			 */
+			state: State<Input, Output>;
 		},
 	) {}
 
@@ -113,9 +113,9 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	 */
 	get graph() {
 		const langgraph = new AgentToLanggraph({
-			state: this.props.state,
-			procedures: this.props.procedures,
 			llm: this.props.llm,
+			procedures: this.props.procedures,
+			state: this.props.state,
 		});
 		return langgraph.build();
 	}
@@ -145,7 +145,7 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 		const procedureMap = new Map<string, Procedure<State<Input, Output>["values"]>>();
 		for (const proc of this.props.procedures) procedureMap.set(proc.name, proc);
 
-		let currentProcedure: Procedure<State<Input, Output>["values"]> | null = this.props.procedures[0];
+		let currentProcedure: null | Procedure<State<Input, Output>["values"]> = this.props.procedures[0];
 		let iteration = 0;
 
 		while (currentProcedure) {

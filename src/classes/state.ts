@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Esse arquivo precisa de vários any */
 import type { z } from "zod";
 
 /**
@@ -113,6 +114,48 @@ export class State<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	}
 
 	/**
+	 * Função auxiliar que processa recursivamente objetos aninhados e arrays
+	 * para converter para o formato LangGraph
+	 *
+	 * @param obj - Objeto ou array a ser processado
+	 * @param prefix - Prefixo a ser adicionado às chaves
+	 * @param result - Objeto de resultado acumulado
+	 * @private
+	 */
+	private static processObject(obj: any, prefix: string, result: Record<string, any>): void {
+		// Se for null ou undefined, adiciona diretamente
+		if (obj === null || obj === undefined) {
+			result[prefix] = obj;
+			return;
+		}
+
+		// Se for um array
+		if (Array.isArray(obj)) {
+			result[prefix] = obj;
+			return;
+		}
+
+		// Se for um objeto (mas não um array)
+		if (typeof obj === "object") {
+			// Para cada propriedade do objeto
+			for (const [key, value] of Object.entries(obj)) {
+				const newPrefix = prefix ? `${prefix}_${key}` : key;
+
+				// Se o valor for um objeto ou array, processa recursivamente
+				if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+					this.processObject(value, newPrefix, result);
+				} else {
+					// Caso contrário, adiciona diretamente
+					result[newPrefix] = value;
+				}
+			}
+		} else {
+			// Se não for um objeto (é um valor primitivo)
+			result[prefix] = obj;
+		}
+	}
+
+	/**
 	 * Converte um objeto de estado no formato `{ input, output }`
 	 * para um formato de objeto plano, onde cada chave é prefixada
 	 * com `"input_"` ou `"output_"`.
@@ -125,10 +168,15 @@ export class State<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	 */
 	static valuesToLanggraph(values: StateValuesFormat) {
 		const { input, output } = values;
-		const object: Record<string, any> = {};
-		for (const [key, value] of Object.entries(input)) object[`input_${key}`] = value;
-		for (const [key, value] of Object.entries(output)) object[`output_${key}`] = value;
-		return object;
+		const result: Record<string, any> = {};
+
+		// Processa o objeto de input
+		this.processObject(input, "input", result);
+
+		// Processa o objeto de output
+		this.processObject(output, "output", result);
+
+		return result;
 	}
 
 	/**
@@ -142,10 +190,39 @@ export class State<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 	static langgraphToValues(object: Record<string, any>) {
 		const input: Record<string, any> = {};
 		const output: Record<string, any> = {};
+
 		for (const [key, value] of Object.entries(object)) {
-			if (key.startsWith("input_")) input[key.replace("input_", "")] = value;
-			if (key.startsWith("output_")) output[key.replace("output_", "")] = value;
+			if (key.startsWith("input_")) {
+				const path = key.replace("input_", "").split("_");
+				let current = input;
+
+				// Percorre o caminho para chegar ao objeto correto
+				for (let i = 0; i < path.length - 1; i++) {
+					if (!current[path[i]]) {
+						current[path[i]] = {};
+					}
+					current = current[path[i]];
+				}
+
+				// Define o valor na última parte do caminho
+				current[path[path.length - 1]] = value;
+			} else if (key.startsWith("output_")) {
+				const path = key.replace("output_", "").split("_");
+				let current = output;
+
+				// Percorre o caminho para chegar ao objeto correto
+				for (let i = 0; i < path.length - 1; i++) {
+					if (!current[path[i]]) {
+						current[path[i]] = {};
+					}
+					current = current[path[i]];
+				}
+
+				// Define o valor na última parte do caminho
+				current[path[path.length - 1]] = value;
+			}
 		}
+
 		return { input, output };
 	}
 }

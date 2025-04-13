@@ -17,11 +17,6 @@ export interface ActionProcedure<StateValues extends StateValuesFormat> {
 	name: string;
 
 	/**
-	 * Tipo do procedimento, neste caso é sempre `"action"`
-	 */
-	type: "action";
-
-	/**
 	 * Nome da próxima procedure que deve ser executada.
 	 *
 	 * Se fornecido, o fluxo de execução passa diretamente para `nextProcedure`.
@@ -42,6 +37,11 @@ export interface ActionProcedure<StateValues extends StateValuesFormat> {
 	 * @returns Estado atualizado
 	 */
 	run(state: StateValues, llm: BaseChatModel): Promise<StateValues>;
+
+	/**
+	 * Tipo do procedimento, neste caso é sempre `"action"`
+	 */
+	type: "action";
 }
 
 /**
@@ -60,19 +60,19 @@ export interface CheckProcedure<StateValues extends StateValuesFormat> {
 	name: string;
 
 	/**
-	 * Tipo do procedimento, neste caso é sempre `"check"`
-	 */
-	type: "check";
-
-	/**
 	 * Método responsável por verificar/analisar o estado atual e retornar
 	 * o nome da próxima procedure a ser executada.
 	 *
 	 * @param state - Estado atual do agente
 	 * @param llm - Modelo de linguagem que o Agent utiliza para auxiliar na execução
-	 * @returns Nome da próxima procedure que o Agent deve executar
+	 * @returns Nome da próxima procedure que o Agent deve executar, ou null/undefined para finalizar a execução
 	 */
-	run(state: StateValues, llm: BaseChatModel): Promise<string>;
+	run(state: StateValues, llm: BaseChatModel): Promise<null | string | undefined>;
+
+	/**
+	 * Tipo do procedimento, neste caso é sempre `"check"`
+	 */
+	type: "check";
 }
 
 /**

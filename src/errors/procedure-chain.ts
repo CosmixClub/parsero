@@ -1,7 +1,7 @@
 import { ParseroError } from ".";
 
 export class ProcedureChainError extends ParseroError {
-	constructor(message: string) {
-		super(message);
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
 	}
 }

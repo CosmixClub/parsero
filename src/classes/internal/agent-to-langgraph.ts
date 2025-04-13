@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Esse arquivo precisa de vários any */
 import { z } from "zod";
 
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
@@ -12,9 +13,9 @@ export class AgentToLanggraph<Input extends z.AnyZodObject, Output extends z.Any
 
 	constructor(
 		private readonly props: {
-			state: State<Input, Output>;
-			procedures: Procedure<State<Input, Output>["values"]>[];
 			llm: BaseChatModel;
+			procedures: Procedure<State<Input, Output>["values"]>[];
+			state: State<Input, Output>;
 		},
 	) {
 		this.stateBuilder = () => {
@@ -32,8 +33,8 @@ export class AgentToLanggraph<Input extends z.AnyZodObject, Output extends z.Any
 			for (const [key, isArray] of [...inputKeys, ...outputKeys]) {
 				if (isArray) {
 					object[key] = Annotation({
-						reducer: (x, y) => x.concat(y),
 						default: () => [],
+						reducer: (x, y) => x.concat(y),
 					});
 				} else {
 					object[key] = Annotation();
@@ -46,7 +47,7 @@ export class AgentToLanggraph<Input extends z.AnyZodObject, Output extends z.Any
 	}
 
 	private describeProcedures() {
-		const edges: Array<[string, string | CheckProcedure<State<Input, Output>["values"]>["run"]]> = [];
+		const edges: Array<[string, CheckProcedure<State<Input, Output>["values"]>["run"] | string]> = [];
 
 		if (this.props.procedures.length > 0) edges.push([START, this.props.procedures[0].name]);
 
@@ -120,7 +121,7 @@ export class AgentToLanggraph<Input extends z.AnyZodObject, Output extends z.Any
 					},
 					this.props.llm,
 				);
-				return next;
+				return next || END;
 			});
 		}
 

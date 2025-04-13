@@ -1,3 +1,6 @@
 node_modules/
 build/
 dist/
+
+tsup.config.ts
+vitest.config.ts
