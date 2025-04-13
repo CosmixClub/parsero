@@ -1,6 +1,6 @@
 {
 	"name": "@cosmixclub/parsero",
-	"version": "1.1.0",
+	"version": "1.1.2",
 	"description": "Construtor de agentes de IA de maneira simplificada.",
 	"author": "Gepetojj <contato.gepetojj@gmail.com>",
 	"license": "MIT",
@@ -54,12 +54,15 @@
 			"esbuild"
 		]
 	},
-	"dependencies": {
-		"@langchain/core": "0.3.44",
-		"@langchain/langgraph": "^0.2.63",
-		"zod": "^3.24.2"
+	"peerDependencies": {
+		"@langchain/core": ">=0.3.0 <0.4.0",
+		"@langchain/langgraph": "^0.2.10",
+		"zod": "^3.20.0"
 	},
 	"devDependencies": {
+		"@langchain/core": "0.3.44",
+		"@langchain/langgraph": "^0.2.63",
+		"zod": "^3.24.2",
 		"@arethetypeswrong/cli": "^0.17.4",
 		"@changesets/cli": "^2.28.1",
 		"@langchain/community": "^0.3.40",
