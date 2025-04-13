@@ -15,6 +15,10 @@
         - [Como Funciona](#como-funciona)
         - [Integração com LangGraph](#integração-com-langgraph)
         - [Tipagem para Múltiplos LLMs](#tipagem-para-múltiplos-llms)
+    - [Reutilizando Procedures com InferState](#reutilizando-procedures-com-inferstate)
+        - [Como Funciona](#como-funciona-1)
+        - [Por que Usar](#por-que-usar)
+        - [Exemplo Completo](#exemplo-completo)
     - [Exemplos](#exemplos)
         - [Exemplo 1: CheckProcedure customizando a ordem de execução](#exemplo-1-checkprocedure-customizando-a-ordem-de-execução)
         - [Exemplo 2: Fluxo sequencial **sem** `CheckProcedure` e **sem** `nextProcedure`](#exemplo-2-fluxo-sequencial-sem-checkprocedure-e-sem-nextprocedure)
@@ -41,6 +45,7 @@ O **Parsero** foi desenvolvido para **simplificar** a criação de agentes de IA
 - **Extensibilidade**: Compatível nativamente com LangChain e LangGraph, para que você possa aproveitar o ecossistema existente.
 - **Orquestração por Procedimentos**: Define _procedures_ que podem modificar o estado (`action`) ou indicar o próximo passo (`check`).
 - **Múltiplos LLMs**: Suporte para utilizar diferentes modelos de linguagem em diferentes procedures, otimizando custo e desempenho.
+- **Organização Modular**: Permite definir procedures fora dos agentes com a utilidade `InferState`, facilitando a organização e reuso do código.
 
 ---
 
@@ -166,6 +171,173 @@ const classifyProcedure: ActionProcedure<any, MyLLMs> = {
 	},
 };
 ```
+
+---
+
+## Reutilizando Procedures com InferState
+
+O Parsero fornece a utilidade `InferState<>` que permite definir procedures de forma independente e reutilizável, separadas da definição do agente. Isso traz várias vantagens para a organização do código:
+
+### Como Funciona
+
+`InferState<>` é um tipo utilitário que extrai os tipos de entrada e saída de um `State`, facilitando a definição de procedures fora do contexto do agente:
+
+```ts
+import { z } from "zod";
+
+import { Agent, InferState, Procedure, State } from "@cosmixclub/parsero";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+
+// 1. Defina seu State
+const state = new State({
+	inputSchema: z.object({
+		query: z.string(),
+	}),
+	outputSchema: z.object({
+		result: z.string(),
+	}),
+});
+
+// 2. Crie procedures reutilizáveis com tipagem correta
+const analyzeQuery: Procedure<InferState<typeof state>, BaseChatModel> = {
+	name: "analyzeQuery",
+	nextProcedure: "generateResponse",
+	type: "action",
+	async run(state, llm) {
+		// Seu código aqui...
+		return state;
+	},
+};
+
+const generateResponse: Procedure<InferState<typeof state>, BaseChatModel> = {
+	name: "generateResponse",
+	type: "action",
+	nextProcedure: END,
+	async run(state, llm) {
+		// Seu código aqui...
+		return state;
+	},
+};
+
+// 3. Use as procedures no agente
+const agent = new Agent({
+	state,
+	llm: new ChatOpenAI(),
+	procedures: [
+		analyzeQuery,
+		generateResponse,
+		// Outras procedures...
+	],
+});
+```
+
+### Por que Usar
+
+- **Organização de Código**: Separe a lógica em arquivos distintos para melhor manutenção.
+- **Reusabilidade**: Reutilize procedures em diferentes agentes.
+- **Testabilidade**: Teste procedures individualmente, facilitando os testes unitários.
+- **Colaboração**: Permite que diferentes membros da equipe trabalhem em diferentes procedures.
+
+### Exemplo Completo
+
+Veja como organizar seu código com procedures em arquivos separados:
+
+```ts
+// state.ts
+import { z } from "zod";
+import { State } from "@cosmixclub/parsero";
+
+export const numberClassifierState = new State({
+    inputSchema: z.object({
+        number: z.number(),
+    }),
+    outputSchema: z.object({
+        class: z.enum(["odd", "even"]),
+        explanation: z.string(),
+    }),
+});
+
+// procedures/classify.ts
+import { Procedure } from "@cosmixclub/parsero";
+import { InferState } from "@cosmixclub/parsero";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { z } from "zod";
+import { numberClassifierState } from "../state";
+
+export const whatNumberIs: Procedure<InferState<typeof numberClassifierState>, BaseChatModel> = {
+    name: "whatNumberIs",
+    nextProcedure: "router",
+    async run(state, llm) {
+        const chain = llm.withStructuredOutput(
+            z.object({
+                class: z.enum(["odd", "even"]).describe("Se o número é par ou ímpar"),
+            }),
+        );
+        const output = await chain.invoke(`Determine se o número a seguir é par ou ímpar: ${state.input.number}`);
+        state.output.class = output.class;
+        return state;
+    },
+    type: "action",
+};
+
+// procedures/router.ts
+import { Procedure } from "@cosmixclub/parsero";
+import { InferState } from "@cosmixclub/parsero";
+import { numberClassifierState } from "../state";
+
+export const router: Procedure<InferState<typeof numberClassifierState>, any> = {
+    name: "router",
+    async run(state) {
+        const numberClass = state.output.class;
+        if (numberClass === "odd") return "isOdd";
+        return "isEven";
+    },
+    type: "check",
+};
+
+// agent.ts
+import { Agent, END } from "@cosmixclub/parsero";
+import { ChatOpenAI } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { numberClassifierState } from "./state";
+import { whatNumberIs } from "./procedures/classify";
+import { router } from "./procedures/router";
+
+const agent = new Agent({
+    state: numberClassifierState,
+    llm: new ChatOpenAI(),
+    procedures: [
+        whatNumberIs,
+        router,
+        {
+            name: "isOdd",
+            nextProcedure: END,
+            async run(state, llm) {
+                const chain = llm.pipe(new StringOutputParser());
+                const output = await chain.invoke(
+                    `Gere uma explicação do motivo de '${state.input.number}' ser ímpar.`,
+                );
+                state.output.explanation = output;
+                return state;
+            },
+            type: "action",
+        },
+        {
+            name: "isEven",
+            nextProcedure: END,
+            async run(state, llm) {
+                const chain = llm.pipe(new StringOutputParser());
+                const output = await chain.invoke(`Gere uma explicação do motivo de '${state.input.number}' ser par.`);
+                state.output.explanation = output;
+                return state;
+            },
+            type: "action",
+        },
+    ],
+});
+```
+
+Usando essa abordagem, seu código fica mais organizado, modular e fácil de manter, especialmente em projetos maiores com múltiplos agentes e procedures complexas.
 
 ---
 

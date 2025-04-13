@@ -2,13 +2,41 @@ import dotenv from "dotenv";
 // import { writeFileSync } from "node:fs";
 import { z } from "zod";
 
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { END } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 
-import { Agent, State } from ".";
+import { Agent, Procedure, State } from ".";
+import { InferState } from "./classes/state";
 
 dotenv.config();
+
+const state = new State({
+	inputSchema: z.object({
+		number: z.number(),
+	}),
+	outputSchema: z.object({
+		class: z.enum(["odd", "even"]),
+		explanation: z.string(),
+	}),
+});
+
+const whatNumberIs: Procedure<InferState<typeof state>, BaseChatModel> = {
+	name: "whatNumberIs",
+	nextProcedure: "router",
+	async run(state, llm) {
+		const chain = llm.withStructuredOutput(
+			z.object({
+				class: z.enum(["odd", "even"]).describe("Se o número é par ou ímpar"),
+			}),
+		);
+		const output = await chain.invoke(`Determine se o número a seguir é par ou ímpar: ${state.input.number}`);
+		state.output.class = output.class;
+		return state;
+	},
+	type: "action",
+};
 
 const agent = new Agent({
 	llm: new ChatOpenAI({
@@ -23,23 +51,7 @@ const agent = new Agent({
 		verbose: true,
 	},
 	procedures: [
-		{
-			name: "whatNumberIs",
-			nextProcedure: "router",
-			async run(state, llm) {
-				const chain = llm.withStructuredOutput(
-					z.object({
-						class: z.enum(["odd", "even"]).describe("Se o número é par ou ímpar"),
-					}),
-				);
-				const output = await chain.invoke(
-					`Determine se o número a seguir é par ou ímpar: ${state.input.number}`,
-				);
-				state.output.class = output.class;
-				return state;
-			},
-			type: "action",
-		},
+		whatNumberIs,
 		{
 			name: "router",
 			async run(state) {
@@ -74,15 +86,7 @@ const agent = new Agent({
 			type: "action",
 		},
 	],
-	state: new State({
-		inputSchema: z.object({
-			number: z.number(),
-		}),
-		outputSchema: z.object({
-			class: z.enum(["odd", "even"]),
-			explanation: z.string(),
-		}),
-	}),
+	state,
 });
 
 (async () => {

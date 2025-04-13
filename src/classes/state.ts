@@ -2,6 +2,13 @@
 import type { z } from "zod";
 
 /**
+ * Extrai os tipos genéricos Input e Output de um tipo State
+ * Usado para facilitar o uso de Procedure com State sem necessidade de
+ * recriar os tipos manualmente.
+ */
+export type InferState<T> = T extends State<infer I, infer O> ? State<I, O>["values"] : never;
+
+/**
  * Representa o formato mínimo esperado para os valores de estado
  * utilizados por um agente. Estes valores são normalmente divididos
  * em `input` e `output`.
