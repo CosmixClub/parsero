@@ -527,4 +527,214 @@ describe("Agent", () => {
 		expect(seq2.run).toHaveBeenCalled();
 		expect(result.description).toBe("Executou em sequência");
 	});
+
+	// === TESTES PARA A FEATURE DE MÚLTIPLOS LLMS ===
+
+	it("should support multiple LLMs mapped by name", async () => {
+		// Mock de múltiplos LLMs
+		const mockLLMs = {
+			default: {
+				invoke: vi.fn().mockResolvedValue("Resposta do LLM default"),
+				pipe: vi.fn().mockReturnThis(),
+				withStructuredOutput: vi.fn().mockReturnThis(),
+			} as unknown as ChatOpenAI,
+			summarizer: {
+				invoke: vi.fn().mockResolvedValue("Resposta do LLM summarizer"),
+				pipe: vi.fn().mockReturnThis(),
+				withStructuredOutput: vi.fn().mockReturnThis(),
+			} as unknown as ChatOpenAI,
+		};
+
+		// Criar procedures que usam LLMs específicos
+		const defaultLLMProc: ActionProcedure<any, typeof mockLLMs> = {
+			name: "defaultLLMProc",
+			nextProcedure: "summarizerProc",
+			run: vi.fn().mockImplementation(async (state, llms) => {
+				// Usa o LLM default
+				await llms.default.invoke("Usando o LLM default");
+				state.output.isEven = state.input.number % 2 === 0;
+				return state;
+			}),
+			type: "action",
+		};
+
+		const summarizerLLMProc: ActionProcedure<any, typeof mockLLMs> = {
+			name: "summarizerProc",
+			run: vi.fn().mockImplementation(async (state, llms) => {
+				// Usa o LLM summarizer
+				await llms.summarizer.invoke("Usando o LLM summarizer");
+				state.output.description = `O número ${state.input.number} ${state.output.isEven ? "é par" : "é ímpar"}.`;
+				return state;
+			}),
+			type: "action",
+		};
+
+		const state = new State({ inputSchema, outputSchema });
+		const agent = new Agent({
+			llm: mockLLMs,
+			procedures: [defaultLLMProc, summarizerLLMProc],
+			state,
+		});
+
+		// Executar o agente
+		const result = await agent.run({ number: 42 });
+
+		// Verificar que a execução foi bem-sucedida
+		expect(result.isEven).toBe(true);
+		expect(result.description).toBe("O número 42 é par.");
+
+		// Verificar que cada LLM foi chamado corretamente
+		expect(mockLLMs.default.invoke).toHaveBeenCalledWith("Usando o LLM default");
+		expect(mockLLMs.summarizer.invoke).toHaveBeenCalledWith("Usando o LLM summarizer");
+		expect(defaultLLMProc.run).toHaveBeenCalledWith(expect.anything(), mockLLMs);
+		expect(summarizerLLMProc.run).toHaveBeenCalledWith(expect.anything(), mockLLMs);
+	});
+
+	it("should support CheckProcedure with multiple LLMs", async () => {
+		// Mock de múltiplos LLMs
+		const mockLLMs = {
+			default: {
+				invoke: vi.fn().mockResolvedValue("Resposta do LLM default"),
+				pipe: vi.fn().mockReturnThis(),
+				withStructuredOutput: vi.fn().mockReturnThis(),
+			} as unknown as ChatOpenAI,
+			router: {
+				invoke: vi.fn().mockResolvedValue("Resposta do LLM router"),
+				pipe: vi.fn().mockReturnThis(),
+				withStructuredOutput: vi.fn().mockReturnThis(),
+			} as unknown as ChatOpenAI,
+		};
+
+		// Criar actions e check procedures que usam LLMs específicos
+		const setupProc: ActionProcedure<any, typeof mockLLMs> = {
+			name: "setup",
+			nextProcedure: "smartRouter",
+			run: vi.fn().mockImplementation(async (state, llms) => {
+				await llms.default.invoke("Configurando o estado");
+				state.output.isEven = state.input.number % 2 === 0;
+				return state;
+			}),
+			type: "action",
+		};
+
+		const routerProc: CheckProcedure<any, typeof mockLLMs> = {
+			name: "smartRouter",
+			run: vi.fn().mockImplementation(async (state, llms) => {
+				// Usa o LLM específico de routing
+				await llms.router.invoke("Decidindo próximo procedimento");
+				return state.output.isEven ? "evenHandler" : "oddHandler";
+			}),
+			type: "check",
+		};
+
+		const evenHandler: ActionProcedure<any, typeof mockLLMs> = {
+			name: "evenHandler",
+			nextProcedure: END,
+			run: vi.fn().mockImplementation(async (state, llms) => {
+				await llms.default.invoke("Processando número par");
+				state.output.description = `O número ${state.input.number} é par (determinado por LLMs).`;
+				return state;
+			}),
+			type: "action",
+		};
+
+		const oddHandler: ActionProcedure<any, typeof mockLLMs> = {
+			name: "oddHandler",
+			nextProcedure: END,
+			run: vi.fn().mockImplementation(async (state, llms) => {
+				await llms.default.invoke("Processando número ímpar");
+				state.output.description = `O número ${state.input.number} é ímpar (determinado por LLMs).`;
+				return state;
+			}),
+			type: "action",
+		};
+
+		const state = new State({ inputSchema, outputSchema });
+		const agent = new Agent({
+			llm: mockLLMs,
+			procedures: [setupProc, routerProc, evenHandler, oddHandler],
+			state,
+		});
+
+		// Teste com número par
+		const resultEven = await agent.run({ number: 42 });
+		expect(resultEven.isEven).toBe(true);
+		expect(resultEven.description).toBe("O número 42 é par (determinado por LLMs).");
+
+		// Verificar que os LLMs corretos foram chamados
+		expect(mockLLMs.default.invoke).toHaveBeenCalledWith("Configurando o estado");
+		expect(mockLLMs.router.invoke).toHaveBeenCalledWith("Decidindo próximo procedimento");
+		expect(mockLLMs.default.invoke).toHaveBeenCalledWith("Processando número par");
+
+		// Reset mocks
+		vi.clearAllMocks();
+
+		// Teste com número ímpar
+		const resultOdd = await agent.run({ number: 43 });
+		expect(resultOdd.isEven).toBe(false);
+		expect(resultOdd.description).toBe("O número 43 é ímpar (determinado por LLMs).");
+
+		// Verificar que os LLMs corretos foram chamados
+		expect(mockLLMs.default.invoke).toHaveBeenCalledWith("Configurando o estado");
+		expect(mockLLMs.router.invoke).toHaveBeenCalledWith("Decidindo próximo procedimento");
+		expect(mockLLMs.default.invoke).toHaveBeenCalledWith("Processando número ímpar");
+	});
+
+	it("should support mixing single LLM and multiple LLMs in different parts of the codebase", async () => {
+		// Podemos verificar se nossos tipos são compatíveis testando com um único LLM
+		// mas tipando as procedures para suportar múltiplos LLMs
+
+		// Criar uma procedure tipada para aceitar o mesmo tipo do mockLLM
+		const flexibleProc: ActionProcedure<any, typeof mockLLM> = {
+			name: "flexibleProc",
+			run: vi.fn().mockImplementation(async (state, llm) => {
+				// Se for um único LLM, deve ser passado diretamente
+				await llm.invoke("Teste de compatibilidade");
+				state.output.isEven = state.input.number % 2 === 0;
+				state.output.description = "Procedure flexível executada";
+				return state;
+			}),
+			type: "action",
+		};
+
+		const state = new State({ inputSchema, outputSchema });
+		const agent = new Agent({
+			// Passar um único LLM mesmo quando a procedure espera múltiplos
+			llm: mockLLM,
+			procedures: [flexibleProc],
+			state,
+		});
+
+		// Executar o agente
+		const result = await agent.run({ number: 42 });
+
+		// Verificar que o agente funcionou corretamente
+		expect(result.isEven).toBe(true);
+		expect(result.description).toBe("Procedure flexível executada");
+		expect(mockLLM.invoke).toHaveBeenCalledWith("Teste de compatibilidade");
+	});
+
+	it("should provide graph access with multiple LLMs", async () => {
+		// Mock de múltiplos LLMs
+		const mockLLMs = {
+			auxiliary: { ...mockLLM } as unknown as ChatOpenAI,
+			default: mockLLM,
+		};
+
+		const state = new State({ inputSchema, outputSchema });
+		const agent = new Agent({
+			llm: mockLLMs,
+			procedures: [
+				{
+					name: "proc1",
+					run: async state => state,
+					type: "action",
+				},
+			],
+			state,
+		});
+
+		// Verificar que o grafo é criado mesmo com múltiplos LLMs
+		expect(agent.graph).toBeDefined();
+	});
 });

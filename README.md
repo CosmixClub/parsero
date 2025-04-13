@@ -11,12 +11,16 @@
     - [Características Principais](#características-principais)
     - [Compatibilidade](#compatibilidade)
     - [Casos de Uso](#casos-de-uso)
-    - [Observações sobre LLMs](#observações-sobre-llms)
+    - [Utilizando Múltiplos LLMs](#utilizando-múltiplos-llms)
+        - [Como Funciona](#como-funciona)
+        - [Integração com LangGraph](#integração-com-langgraph)
+        - [Tipagem para Múltiplos LLMs](#tipagem-para-múltiplos-llms)
     - [Exemplos](#exemplos)
         - [Exemplo 1: CheckProcedure customizando a ordem de execução](#exemplo-1-checkprocedure-customizando-a-ordem-de-execução)
         - [Exemplo 2: Fluxo sequencial **sem** `CheckProcedure` e **sem** `nextProcedure`](#exemplo-2-fluxo-sequencial-sem-checkprocedure-e-sem-nextprocedure)
         - [Exemplo 3: Fluxo personalizado com `nextProcedure`](#exemplo-3-fluxo-personalizado-com-nextprocedure)
-        - [Exemplo 4: Utilizando múltiplos modelos](#exemplo-4-utilizando-múltiplos-modelos)
+        - [Exemplo 4: Utilizando múltiplos modelos para tarefas especializadas](#exemplo-4-utilizando-múltiplos-modelos-para-tarefas-especializadas)
+        - [Exemplo 5: Combinando diferentes famílias de modelos](#exemplo-5-combinando-diferentes-famílias-de-modelos)
 
 ---
 
@@ -36,6 +40,7 @@ O **Parsero** foi desenvolvido para **simplificar** a criação de agentes de IA
 - **Simplicidade**: Os superpoderes do LangGraph mas com interface mais direta, seguindo padrões definidos (Procedures do tipo `action` e `check`).
 - **Extensibilidade**: Compatível nativamente com LangChain e LangGraph, para que você possa aproveitar o ecossistema existente.
 - **Orquestração por Procedimentos**: Define _procedures_ que podem modificar o estado (`action`) ou indicar o próximo passo (`check`).
+- **Múltiplos LLMs**: Suporte para utilizar diferentes modelos de linguagem em diferentes procedures, otimizando custo e desempenho.
 
 ---
 
@@ -62,42 +67,104 @@ O **Parsero** foi desenvolvido para **simplificar** a criação de agentes de IA
     - Perfeito para pipelines de dados, chatbots especializados, ou qualquer agente que precise controlar o estado de forma clara.
 
 4. **Orquestração de Múltiplos LLMs**
-    - Cada **action** pode chamar diferentes instâncias de `BaseChatModel`, tornando o fluxo totalmente flexível.
+    - Cada **procedure** pode acessar diferentes instâncias de LLM, permitindo combinar modelos especializados.
+    - Use modelos mais econômicos para tarefas simples e modelos avançados apenas para tarefas complexas.
+    - Combine diferentes famílias de modelos (OpenAI, Anthropic, Google, etc.) no mesmo agente.
 
 ---
 
-## Observações sobre LLMs
+## Utilizando Múltiplos LLMs
 
-- **Múltiplos Modelos**: A classe `Agent` aceita tanto um único modelo LLM quanto um objeto mapeando nomes para diferentes modelos. Isso permite utilizar modelos específicos para diferentes partes do fluxo.
-- **Integração com LangGraph**: Quando se utiliza a integração com LangGraph através de `agent.graph`, e múltiplos modelos são fornecidos, a biblioteca utilizará automaticamente:
-    1. O modelo chamado "default" se existir
-    2. O primeiro modelo disponível no objeto caso contrário
+O Parsero permite que você use diferentes modelos de linguagem para diferentes partes do seu agente, otimizando tanto o desempenho quanto os custos.
+
+### Como Funciona
+
+Ao criar seu agente, você pode fornecer um mapa de modelos em vez de um único modelo:
 
 ```ts
 import { Agent, State } from "@cosmixclub/parsero";
+import { ChatAnthropic } from "@langchain/anthropic";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatOpenAI } from "@langchain/openai";
 
-// Exemplo com múltiplos modelos
 const agent = new Agent({
-	state: new State({
-		/* schemas aqui */
-	}),
-	// Objeto mapeando nomes para diferentes modelos
+	// Outros parâmetros...
 	llm: {
-		default: new ChatOpenAI({ model: "gpt-4o" }), // Utilizado por padrão
-		summarize: new ChatGoogleGenerativeAI({ model: "gemini-pro" }), // Para tarefas específicas
-		classify: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 }),
+		default: new ChatOpenAI({ model: "gpt-4o" }), // Modelo principal
+		summarize: new ChatGoogleGenerativeAI({ model: "gemini-pro" }), // Para resumos
+		classify: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 }), // Para classificações
+		creative: new ChatAnthropic({ model: "claude-3-opus-20240229" }), // Para geração criativa
 	},
-	procedures: [
-		/* procedures aqui */
-	],
+	// ...
+});
+```
+
+Dentro de suas procedures, você pode acessar o modelo específico que deseja utilizar:
+
+```ts
+// Em uma ActionProcedure
+async run(state, llms) {
+  // Use o modelo específico para tarefas de classificação
+  const result = await llms.classify.invoke("Classifique este texto...");
+
+  // Use o modelo específico para resumos
+  const summary = await llms.summarize.invoke("Resuma este conteúdo...");
+
+  // Use o modelo padrão
+  const response = await llms.default.invoke("Responda esta pergunta...");
+
+  // Continue seu código...
+  return state;
+}
+```
+
+### Integração com LangGraph
+
+Ao utilizar `agent.graph` para acessar o grafo LangGraph equivalente, a biblioteca automaticamente:
+
+1. **Usará o modelo "default"** se estiver disponível no objeto de LLMs
+2. **Usará o primeiro modelo** do objeto se não houver um modelo chamado "default"
+
+Esta abordagem garante compatibilidade com o LangGraph que atualmente espera um único modelo, mas ainda permite que você utilize múltiplos modelos dentro do seu agente Parsero.
+
+```ts
+const agent = new Agent({
+	llm: {
+		default: new ChatOpenAI(), // Este será usado no LangGraph
+		specialTask: new ChatAnthropic(),
+	},
+	// ...
 });
 
-// Ao usar agent.graph, o modelo "default" será utilizado para toda a execução
+// O grafo usará o modelo "default" internamente
 const graph = agent.graph;
 
-const result = await agent.run(input);
+// Execute o grafo
+await graph.invoke({ input: "exemplo" });
+```
+
+### Tipagem para Múltiplos LLMs
+
+Se você estiver usando TypeScript, pode tirar vantagem do sistema de tipos para garantir que suas procedures acessem apenas LLMs que realmente existem:
+
+```ts
+// Defina o tipo do seu mapa de LLMs
+type MyLLMs = {
+	default: ChatOpenAI;
+	summarize: ChatGoogleGenerativeAI;
+	classify: ChatOpenAI;
+};
+
+// Use o tipo genérico na sua procedure
+const classifyProcedure: ActionProcedure<any, MyLLMs> = {
+	name: "classify",
+	type: "action",
+	async run(state, llms) {
+		// TypeScript sabe que llms.classify existe e é do tipo ChatOpenAI
+		const result = await llms.classify.invoke("...");
+		// ...
+	},
+};
 ```
 
 ---
@@ -319,9 +386,9 @@ console.log(output);
 
 ---
 
-### Exemplo 4: Utilizando múltiplos modelos
+### Exemplo 4: Utilizando múltiplos modelos para tarefas especializadas
 
-Este exemplo mostra como utilizar diferentes modelos para diferentes partes do fluxo:
+Este exemplo mostra como utilizar diferentes modelos para diferentes partes do fluxo, otimizando o custo e especialização:
 
 ```ts
 import { z } from "zod";
@@ -338,15 +405,21 @@ const agent = new Agent({
 		outputSchema: z.object({
 			classification: z.string(),
 			summary: z.string(),
+			response: z.string(),
 		}),
 	}),
-	// Configuração de múltiplos modelos
+	// Configuração de múltiplos modelos para diferentes funções
 	llm: {
-		default: new ChatOpenAI({ model: "gpt-4o-mini" }),
+		// Modelo padrão para casos gerais
+		default: new ChatOpenAI({ model: "gpt-4o" }),
+
+		// Modelo especializado e econômico para classificação
 		classify: new ChatOpenAI({
 			model: "gpt-4o-mini",
 			temperature: 0, // Temperatura baixa para classificação precisa
 		}),
+
+		// Modelo especializado em resumos
 		summarize: new ChatGoogleGenerativeAI({
 			model: "gemini-pro",
 			temperature: 0.2,
@@ -357,9 +430,9 @@ const agent = new Agent({
 			name: "classifyContent",
 			type: "action",
 			nextProcedure: "summarizeContent",
-			async run(state, llm) {
-				// Acesse os modelos diretamente do objeto llm passado para o Agent
-				const response = await llm.classify.invoke(
+			async run(state, llms) {
+				// Usa o modelo econômico e especializado para classificação
+				const response = await llms.classify.invoke(
 					`Classifique o seguinte texto em uma categoria: "${state.input.text}"`,
 				);
 				state.output.classification = response.toString().trim();
@@ -369,25 +442,228 @@ const agent = new Agent({
 		{
 			name: "summarizeContent",
 			type: "action",
-			nextProcedure: END,
-			async run(state, llm) {
-				// Acesse os modelos diretamente do objeto llm passado para o Agent
-				const response = await llm.summarize.invoke(
+			nextProcedure: "generateFullResponse",
+			async run(state, llms) {
+				// Usa o modelo especializado em resumos
+				const response = await llms.summarize.invoke(
 					`Resuma o seguinte texto de maneira concisa: "${state.input.text}"`,
 				);
 				state.output.summary = response.toString().trim();
 				return state;
 			},
 		},
+		{
+			name: "generateFullResponse",
+			type: "action",
+			nextProcedure: END,
+			async run(state, llms) {
+				// Usa o modelo principal (mais poderoso) para a resposta final
+				const response = await llms.default.invoke(`
+					Crie uma resposta detalhada para o texto a seguir, considerando que:
+					- Ele foi classificado como: ${state.output.classification}
+					- Um resumo conciso seria: ${state.output.summary}
+					
+					Texto original: "${state.input.text}"
+					
+					Sua resposta deve ser completa e considerar tanto a classificação quanto o resumo.
+				`);
+				state.output.response = response.toString().trim();
+				return state;
+			},
+		},
 	],
 });
 
-const output = await agent.run({ text: "Texto longo para classificar e resumir..." });
+const output = await agent.run({ text: "Um texto longo para análise..." });
 console.log(output);
-// => { classification: "Artigo científico", summary: "Este texto aborda..." }
+// => {
+//      classification: "Artigo científico",
+//      summary: "Este texto aborda...",
+//      response: "Análise detalhada considerando a classificação e o resumo..."
+//    }
 ```
 
-> Quando `llm` é um objeto com múltiplos modelos, você pode acessar cada modelo diretamente usando `llm.nomeDoModelo`.
+> Neste exemplo, cada procedure usa um modelo diferente otimizado para sua tarefa específica: classificação, resumo e geração de resposta completa.
+
+---
+
+### Exemplo 5: Combinando diferentes famílias de modelos
+
+Este exemplo demonstra como combinar diferentes famílias de modelos de linguagem para aproveitar as vantagens de cada uma:
+
+```ts
+import { z } from "zod";
+
+import { Agent, END, State } from "@cosmixclub/parsero";
+import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
+
+const agent = new Agent({
+	state: new State({
+		inputSchema: z.object({
+			query: z.string(),
+			context: z.string().optional(),
+		}),
+		outputSchema: z.object({
+			queryType: z.enum(["factual", "creative", "technical"]),
+			response: z.string(),
+			sources: z.array(z.string()).optional(),
+		}),
+	}),
+	llm: {
+		// GPT-4o como modelo padrão
+		default: new ChatOpenAI({
+			model: "gpt-4o",
+			temperature: 0.7,
+		}),
+
+		// Claude para consultas factuais e precisas
+		factual: new ChatAnthropic({
+			model: "claude-3-opus-20240229",
+			temperature: 0.1,
+		}),
+
+		// Gemini para geração de conteúdo criativo
+		creative: new ChatGoogleGenerativeAI({
+			model: "gemini-pro",
+			temperature: 1.0,
+		}),
+
+		// Modelo econômico para roteamento
+		router: new ChatOpenAI({
+			model: "gpt-4o-mini",
+			temperature: 0,
+		}),
+	},
+	procedures: [
+		// Primeiro determina o tipo de consulta
+		{
+			name: "analyzeQuery",
+			type: "action",
+			nextProcedure: "routeQuery",
+			async run(state, llms) {
+				// Usa o modelo mais econômico para classificação
+				const result = await llms.router.withStructuredOutput(
+					z.object({
+						queryType: z
+							.enum(["factual", "creative", "technical"])
+							.describe("O tipo de consulta baseado na natureza da pergunta"),
+						explanation: z.string().describe("Explicação rápida sobre porque essa categoria foi escolhida"),
+					}),
+				).invoke(`
+          Classifique a seguinte consulta em uma das categorias:
+          - factual: Busca por informações factuais, precisas e verificáveis
+          - creative: Busca por conteúdo criativo, ideias, ou explorações conceituais
+          - technical: Busca por explicações técnicas ou soluções para problemas
+
+          Consulta: "${state.input.query}"
+        `);
+
+				state.output.queryType = result.queryType;
+				return state;
+			},
+		},
+
+		// Router decide qual modelo usar com base no tipo de consulta
+		{
+			name: "routeQuery",
+			type: "check",
+			async run(state, llms) {
+				// Lógica de roteamento baseada no tipo de consulta
+				switch (state.output.queryType) {
+					case "factual":
+						return "processFact";
+					case "creative":
+						return "generateCreative";
+					case "technical":
+					default:
+						return "handleTechnical";
+				}
+			},
+		},
+
+		// Processa consultas factuais com Claude (alta precisão)
+		{
+			name: "processFact",
+			type: "action",
+			nextProcedure: END,
+			async run(state, llms) {
+				const response = await llms.factual.invoke(`
+          Responda a seguinte consulta factual com alta precisão.
+          Forneça fontes ou referências quando possível.
+          
+          Consulta: ${state.input.query}
+          ${state.input.context ? `Contexto adicional: ${state.input.context}` : ""}
+        `);
+
+				state.output.response = response.toString();
+				// Em um caso real, você poderia extrair fontes usando structured output
+				state.output.sources = ["Conhecimento integrado do Claude"];
+				return state;
+			},
+		},
+
+		// Gera conteúdo criativo com Gemini
+		{
+			name: "generateCreative",
+			type: "action",
+			nextProcedure: END,
+			async run(state, llms) {
+				const response = await llms.creative.invoke(`
+          Crie uma resposta criativa e inspiradora para:
+          
+          ${state.input.query}
+          ${state.input.context ? `Considerando este contexto: ${state.input.context}` : ""}
+          
+          Seja original, imaginativo e expressivo em sua resposta.
+        `);
+
+				state.output.response = response.toString();
+				return state;
+			},
+		},
+
+		// Processa consultas técnicas com o modelo padrão (GPT-4o)
+		{
+			name: "handleTechnical",
+			type: "action",
+			nextProcedure: END,
+			async run(state, llms) {
+				const response = await llms.default.invoke(`
+          Forneça uma resposta técnica detalhada e precisa para:
+          
+          ${state.input.query}
+          ${state.input.context ? `Contexto adicional: ${state.input.context}` : ""}
+          
+          Inclua exemplos práticos quando relevante.
+        `);
+
+				state.output.response = response.toString();
+				return state;
+			},
+		},
+	],
+});
+
+// Teste com diferentes tipos de consultas
+const factualResult = await agent.run({
+	query: "Qual é a distância média da Terra ao Sol?",
+});
+// Usará o Claude para esta consulta factual
+
+const creativeResult = await agent.run({
+	query: "Escreva um poema sobre inteligência artificial e a natureza humana.",
+});
+// Usará o Gemini para esta consulta criativa
+
+const technicalResult = await agent.run({
+	query: "Como implementar uma árvore binária de busca em JavaScript?",
+});
+// Usará o GPT-4o para esta consulta técnica
+```
+
+> Este exemplo mostra um agente sofisticado que roteia consultas para diferentes modelos com base no tipo de pergunta, utilizando os pontos fortes de cada modelo.
 
 ---
 
