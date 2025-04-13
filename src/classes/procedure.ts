@@ -1,5 +1,6 @@
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
+import { LLMTypeBase } from "./agent";
 import { StateValuesFormat } from "./state";
 
 /**
@@ -9,8 +10,9 @@ import { StateValuesFormat } from "./state";
  * Quando executada, retorna o objeto de estado atualizado.
  *
  * @template StateValues - Formato dos valores de estado usados pelas procedures
+ * @template LLMType - Tipo específico do modelo de linguagem passado para o procedimento
  */
-export interface ActionProcedure<StateValues extends StateValuesFormat> {
+export interface ActionProcedure<StateValues extends StateValuesFormat, LLMType extends LLMTypeBase = BaseChatModel> {
 	/**
 	 * Nome único para identificação da procedure
 	 */
@@ -36,7 +38,7 @@ export interface ActionProcedure<StateValues extends StateValuesFormat> {
 	 * @param llm - Modelo de linguagem que o Agent utiliza para auxiliar na execução
 	 * @returns Estado atualizado
 	 */
-	run(state: StateValues, llm: BaseChatModel): Promise<StateValues>;
+	run(state: StateValues, llm: LLMType): Promise<StateValues>;
 
 	/**
 	 * Tipo do procedimento, neste caso é sempre `"action"`
@@ -52,8 +54,9 @@ export interface ActionProcedure<StateValues extends StateValuesFormat> {
  * retorna o **nome da próxima procedure** que deve ser executada pelo {@link Agent}.
  *
  * @template StateValues - Formato dos valores de estado usados pelas procedures
+ * @template LLMType - Tipo específico do modelo de linguagem passado para o procedimento
  */
-export interface CheckProcedure<StateValues extends StateValuesFormat> {
+export interface CheckProcedure<StateValues extends StateValuesFormat, LLMType extends LLMTypeBase = BaseChatModel> {
 	/**
 	 * Nome único para identificação da procedure
 	 */
@@ -67,7 +70,7 @@ export interface CheckProcedure<StateValues extends StateValuesFormat> {
 	 * @param llm - Modelo de linguagem que o Agent utiliza para auxiliar na execução
 	 * @returns Nome da próxima procedure que o Agent deve executar, ou null/undefined para finalizar a execução
 	 */
-	run(state: StateValues, llm: BaseChatModel): Promise<null | string | undefined>;
+	run(state: StateValues, llm: LLMType): Promise<null | string | undefined>;
 
 	/**
 	 * Tipo do procedimento, neste caso é sempre `"check"`
@@ -83,7 +86,8 @@ export interface CheckProcedure<StateValues extends StateValuesFormat> {
  * - **Check**: Não altera o estado e sempre retorna o nome da próxima procedure.
  *
  * @template StateValues - Formato dos valores de estado usados pelas procedures
+ * @template LLMType - Tipo específico do modelo de linguagem
  */
-export type Procedure<StateValues extends StateValuesFormat> =
-	| ActionProcedure<StateValues>
-	| CheckProcedure<StateValues>;
+export type Procedure<StateValues extends StateValuesFormat, LLMType extends LLMTypeBase = BaseChatModel> =
+	| ActionProcedure<StateValues, LLMType>
+	| CheckProcedure<StateValues, LLMType>;

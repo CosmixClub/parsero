@@ -4,20 +4,49 @@ import { z } from "zod";
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 
+import { LLMTypeBase } from "../agent";
 import { CheckProcedure, Procedure } from "../procedure";
 import { State } from "../state";
 
-export class AgentToLanggraph<Input extends z.AnyZodObject, Output extends z.AnyZodObject> {
+export class AgentToLanggraph<
+	Input extends z.AnyZodObject,
+	Output extends z.AnyZodObject,
+	LLMType extends LLMTypeBase = BaseChatModel,
+> {
 	private readonly stateBuilder: () => Record<string, any>;
 	private readonly state: Record<string, any>;
+	private readonly llm: BaseChatModel;
 
 	constructor(
 		private readonly props: {
-			llm: BaseChatModel;
-			procedures: Procedure<State<Input, Output>["values"]>[];
+			llm: LLMType;
+			procedures: Procedure<State<Input, Output>["values"], LLMTypeBase>[];
 			state: State<Input, Output>;
 		},
 	) {
+		// Verifica se o LLM fornecido é um único modelo ou um mapa de modelos
+		if (this.props.llm instanceof BaseChatModel) {
+			this.llm = this.props.llm;
+		} else {
+			// Se for um objeto, utiliza o primeiro modelo disponível
+			const modelKeys = Object.keys(this.props.llm);
+			if (modelKeys.length === 0) {
+				throw new Error(
+					"Nenhum modelo foi fornecido no objeto de LLMs. A integração com LangGraph precisa de pelo menos um modelo.",
+				);
+			}
+
+			// Tenta usar o modelo "default" se existir, caso contrário usa o primeiro
+			const defaultKey = modelKeys.includes("default") ? "default" : modelKeys[0];
+			this.llm = this.props.llm[defaultKey];
+
+			if (modelKeys.length > 1) {
+				console.warn(
+					`A integração com LangGraph está utilizando apenas o modelo "${defaultKey}". Os outros modelos serão ignorados.`,
+				);
+			}
+		}
+
 		this.stateBuilder = () => {
 			const inputKeys: [string, boolean][] = Object.keys(this.props.state.values.input).map(key => [
 				`input_${key}`,
@@ -51,7 +80,7 @@ export class AgentToLanggraph<Input extends z.AnyZodObject, Output extends z.Any
 
 		if (this.props.procedures.length > 0) edges.push([START, this.props.procedures[0].name]);
 
-		const procedureMap = new Map<string, Procedure<State<Input, Output>["values"]>>();
+		const procedureMap = new Map<string, Procedure<State<Input, Output>["values"], LLMTypeBase>>();
 		for (const proc of this.props.procedures) procedureMap.set(proc.name, proc);
 
 		for (let i = 0; i < this.props.procedures.length; i++) {
@@ -96,7 +125,7 @@ export class AgentToLanggraph<Input extends z.AnyZodObject, Output extends z.Any
 							...this.props.state.values,
 							...agentState,
 						},
-						this.props.llm,
+						this.llm,
 					);
 					const newLanggraphState = State.valuesToLanggraph(values);
 					return newLanggraphState;
@@ -119,7 +148,7 @@ export class AgentToLanggraph<Input extends z.AnyZodObject, Output extends z.Any
 						...this.props.state.values,
 						...agentState,
 					},
-					this.props.llm,
+					this.llm,
 				);
 				return next || END;
 			});

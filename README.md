@@ -11,10 +11,12 @@
     - [Características Principais](#características-principais)
     - [Compatibilidade](#compatibilidade)
     - [Casos de Uso](#casos-de-uso)
+    - [Observações sobre LLMs](#observações-sobre-llms)
     - [Exemplos](#exemplos)
         - [Exemplo 1: CheckProcedure customizando a ordem de execução](#exemplo-1-checkprocedure-customizando-a-ordem-de-execução)
         - [Exemplo 2: Fluxo sequencial **sem** `CheckProcedure` e **sem** `nextProcedure`](#exemplo-2-fluxo-sequencial-sem-checkprocedure-e-sem-nextprocedure)
         - [Exemplo 3: Fluxo personalizado com `nextProcedure`](#exemplo-3-fluxo-personalizado-com-nextprocedure)
+        - [Exemplo 4: Utilizando múltiplos modelos](#exemplo-4-utilizando-múltiplos-modelos)
 
 ---
 
@@ -61,6 +63,42 @@ O **Parsero** foi desenvolvido para **simplificar** a criação de agentes de IA
 
 4. **Orquestração de Múltiplos LLMs**
     - Cada **action** pode chamar diferentes instâncias de `BaseChatModel`, tornando o fluxo totalmente flexível.
+
+---
+
+## Observações sobre LLMs
+
+- **Múltiplos Modelos**: A classe `Agent` aceita tanto um único modelo LLM quanto um objeto mapeando nomes para diferentes modelos. Isso permite utilizar modelos específicos para diferentes partes do fluxo.
+- **Integração com LangGraph**: Quando se utiliza a integração com LangGraph através de `agent.graph`, e múltiplos modelos são fornecidos, a biblioteca utilizará automaticamente:
+    1. O modelo chamado "default" se existir
+    2. O primeiro modelo disponível no objeto caso contrário
+
+```ts
+import { Agent, State } from "@cosmixclub/parsero";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
+
+// Exemplo com múltiplos modelos
+const agent = new Agent({
+	state: new State({
+		/* schemas aqui */
+	}),
+	// Objeto mapeando nomes para diferentes modelos
+	llm: {
+		default: new ChatOpenAI({ model: "gpt-4o" }), // Utilizado por padrão
+		summarize: new ChatGoogleGenerativeAI({ model: "gemini-pro" }), // Para tarefas específicas
+		classify: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 }),
+	},
+	procedures: [
+		/* procedures aqui */
+	],
+});
+
+// Ao usar agent.graph, o modelo "default" será utilizado para toda a execução
+const graph = agent.graph;
+
+const result = await agent.run(input);
+```
 
 ---
 
@@ -278,6 +316,78 @@ console.log(output);
 ```
 
 > A execução passa **explicitamente** de `"processInput"` para `"generateSummary"`. Em seguida, `"generateSummary"` define `nextProcedure: END` para indicar o fim.
+
+---
+
+### Exemplo 4: Utilizando múltiplos modelos
+
+Este exemplo mostra como utilizar diferentes modelos para diferentes partes do fluxo:
+
+```ts
+import { z } from "zod";
+
+import { Agent, END, State } from "@cosmixclub/parsero";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
+
+const agent = new Agent({
+	state: new State({
+		inputSchema: z.object({
+			text: z.string(),
+		}),
+		outputSchema: z.object({
+			classification: z.string(),
+			summary: z.string(),
+		}),
+	}),
+	// Configuração de múltiplos modelos
+	llm: {
+		default: new ChatOpenAI({ model: "gpt-4o-mini" }),
+		classify: new ChatOpenAI({
+			model: "gpt-4o-mini",
+			temperature: 0, // Temperatura baixa para classificação precisa
+		}),
+		summarize: new ChatGoogleGenerativeAI({
+			model: "gemini-pro",
+			temperature: 0.2,
+		}),
+	},
+	procedures: [
+		{
+			name: "classifyContent",
+			type: "action",
+			nextProcedure: "summarizeContent",
+			async run(state, llm) {
+				// Acesse os modelos diretamente do objeto llm passado para o Agent
+				const response = await llm.classify.invoke(
+					`Classifique o seguinte texto em uma categoria: "${state.input.text}"`,
+				);
+				state.output.classification = response.toString().trim();
+				return state;
+			},
+		},
+		{
+			name: "summarizeContent",
+			type: "action",
+			nextProcedure: END,
+			async run(state, llm) {
+				// Acesse os modelos diretamente do objeto llm passado para o Agent
+				const response = await llm.summarize.invoke(
+					`Resuma o seguinte texto de maneira concisa: "${state.input.text}"`,
+				);
+				state.output.summary = response.toString().trim();
+				return state;
+			},
+		},
+	],
+});
+
+const output = await agent.run({ text: "Texto longo para classificar e resumir..." });
+console.log(output);
+// => { classification: "Artigo científico", summary: "Este texto aborda..." }
+```
+
+> Quando `llm` é um objeto com múltiplos modelos, você pode acessar cada modelo diretamente usando `llm.nomeDoModelo`.
 
 ---
 

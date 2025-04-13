@@ -11,6 +11,13 @@ import { Procedure } from "./procedure";
 import { State } from "./state";
 
 /**
+ * Tipo base que define o que um modelo de linguagem (LLM) deve ser.
+ * Pode ser um BaseChatModel ou um objeto com chaves sendo os nomes dos modelos
+ * e os valores sendo instâncias de BaseChatModel.
+ */
+export type LLMTypeBase = BaseChatModel | Record<string, BaseChatModel>;
+
+/**
  * Representa um agente de IA que processa uma sequência de {@link Procedure|Procedures}.
  *
  * A classe `Agent` é responsável por receber um estado, um conjunto de `Procedure`
@@ -24,21 +31,32 @@ import { State } from "./state";
  *
  * @template Input - Schema Zod para o estado de entrada
  * @template Output - Schema Zod para o estado de saída
+ * @template LLMType - Tipo específico do modelo de linguagem (inferido automaticamente)
  */
-export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> {
+export class Agent<
+	Input extends z.AnyZodObject,
+	Output extends z.AnyZodObject,
+	LLMType extends LLMTypeBase = BaseChatModel,
+> {
 	constructor(
 		private readonly props: {
 			/**
-			 * Modelo de linguagem que será utilizado pelas procedures. Deve ser um `ChatModel` do LangChain.
+			 * Modelo de linguagem que será utilizado pelas procedures. Pode ser um `ChatModel` do LangChain
+			 * ou um objeto mapeando nomes para modelos.
 			 *
 			 * @see {@link https://js.langchain.com/docs/concepts/chat_models} Saiba mais sobre `ChatModel` do LangChain.
 			 *
 			 * @example
+			 * // Modelo único
 			 * new ChatOpenAI()
-			 * new ChatGoogleGenerativeAI()
 			 *
+			 * // Mapa de modelos
+			 * {
+			 *   "default": new ChatOpenAI(),
+			 *   "summarize": new ChatGoogleGenerativeAI()
+			 * }
 			 */
-			llm: BaseChatModel;
+			llm: LLMType;
 
 			/**
 			 * Opções adicionais
@@ -58,7 +76,7 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 			/**
 			 * Lista de {@link Procedure} que serão executadas pelo agente
 			 */
-			procedures: Procedure<State<Input, Output>["values"]>[];
+			procedures: Procedure<State<Input, Output>["values"], LLMType>[];
 
 			/**
 			 * Instância de {@link State} que contém os schemas de entrada/saída e o estado do agente
@@ -142,10 +160,10 @@ export class Agent<Input extends z.AnyZodObject, Output extends z.AnyZodObject> 
 		this.validateProcedureChain();
 
 		// Cria um Map de procedures para se aproveitar da eficiência e popula o grafo
-		const procedureMap = new Map<string, Procedure<State<Input, Output>["values"]>>();
+		const procedureMap = new Map<string, Procedure<State<Input, Output>["values"], LLMTypeBase>>();
 		for (const proc of this.props.procedures) procedureMap.set(proc.name, proc);
 
-		let currentProcedure: null | Procedure<State<Input, Output>["values"]> = this.props.procedures[0];
+		let currentProcedure: null | Procedure<State<Input, Output>["values"], LLMTypeBase> = this.props.procedures[0];
 		let iteration = 0;
 
 		while (currentProcedure) {
