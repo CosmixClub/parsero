@@ -1,3 +1,5 @@
+import { KVMap } from "langsmith/schemas";
+import { traceable } from "langsmith/traceable";
 import { z } from "zod";
 
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
@@ -66,6 +68,17 @@ export class Agent<
 				 * Número máximo de iterações para evitar loops infinitos. Padrão: 100 iterações (use `Infinity` para desabilitar o limite)
 				 */
 				maxIterations?: number;
+
+				/**
+				 * Metadados adicionais para o agente. Pode ser usado para rastreamento
+				 * ou para fornecer informações extras sobre a cadeia de procedimentos.
+				 */
+				metadata?: KVMap;
+
+				/**
+				 * Nome do agente. Útil para depuração e rastreamento.
+				 */
+				name?: string;
 
 				/**
 				 * Se `true`, habilita logs de execução
@@ -166,43 +179,77 @@ export class Agent<
 		let currentProcedure: null | Procedure<State<Input, Output>["values"], LLMTypeBase> = this.props.procedures[0];
 		let iteration = 0;
 
-		while (currentProcedure) {
-			if (iteration++ >= (this.props.options?.maxIterations || 100)) {
-				throw new ProcedureChainError(
-					`O agente atingiu o limite máximo de ${this.props.options?.maxIterations || 100} iterações. Possível loop detectado no grafo.`,
-				);
-			}
+		const agent = traceable(
+			async function agent(meta: Agent<Input, Output, LLMTypeBase>) {
+				while (currentProcedure) {
+					if (iteration++ >= (meta.props.options?.maxIterations || 100)) {
+						throw new ProcedureChainError(
+							`O agente atingiu o limite máximo de ${meta.props.options?.maxIterations || 100} iterações. Possível loop detectado no grafo.`,
+						);
+					}
 
-			if (this.props.options?.verbose) console.log(`[Agente] Iteração ${iteration}: ${currentProcedure.name}`);
+					if (meta.props.options?.verbose) {
+						console.log(
+							`[${meta.props?.options?.name || "Agente"}] Iteração ${iteration}: ${currentProcedure.name}`,
+						);
+					}
 
-			if (currentProcedure.type === "action") {
-				const values = await currentProcedure.run(this.props.state.values, this.props.llm);
-				this.props.state.setInput(values.input);
-				this.props.state.setOutput(values.output);
+					if (currentProcedure.type === "action") {
+						const values = (await traceable(
+							async () => await currentProcedure?.run(meta.props.state.values, meta.props.llm),
+							{
+								metadata: currentProcedure?.tracing?.metadata,
+								name: currentProcedure?.tracing?.label || currentProcedure.name,
+								run_type: currentProcedure?.tracing?.runType || "tool",
+							},
+						)()) as { input: z.infer<Input>; output: z.infer<Output> };
 
-				if (currentProcedure.nextProcedure === END) break;
+						meta.props.state.setInput(values.input);
+						meta.props.state.setOutput(values.output);
 
-				// Caso a procedure de ação tenha nextProcedure definido pula para ele
-				if (currentProcedure.nextProcedure) {
-					const next = procedureMap.get(currentProcedure.nextProcedure);
-					currentProcedure = next ?? null;
-					continue;
+						if (currentProcedure.nextProcedure === END) break;
+
+						// Caso a procedure de ação tenha nextProcedure definido pula para ele
+						if (currentProcedure.nextProcedure) {
+							const next = procedureMap.get(currentProcedure.nextProcedure);
+							currentProcedure = next ?? null;
+							continue;
+						}
+
+						// Caso a procedure de ação não tenha nextProcedure definido,
+						// podemos simplesmente partir para a próxima procedure na lista
+						const currentIndex = meta.props.procedures.findIndex(p => p.name === currentProcedure?.name);
+						const nextProc = meta.props.procedures[currentIndex + 1];
+						currentProcedure = nextProc ?? null;
+					} else if (currentProcedure.type === "check") {
+						// Procedures do tipo check devem retornar o nome do procedimento seguinte
+						// Pegamos o nome e vamos até ele se existir. Se não existir, break
+						const nextProcedure = (await traceable(
+							async () => await currentProcedure?.run(meta.props.state.values, meta.props.llm),
+							{
+								metadata: currentProcedure?.tracing?.metadata,
+								name: currentProcedure?.tracing?.label || currentProcedure.name,
+								run_type: currentProcedure?.tracing?.runType || "tool",
+							},
+						)()) as null | string | undefined;
+
+						if (!nextProcedure || nextProcedure === END) break;
+						const next = procedureMap.get(nextProcedure);
+						currentProcedure = next ?? null;
+					}
 				}
-
-				// Caso a procedure de ação não tenha nextProcedure definido,
-				// podemos simplesmente partir para a próxima procedure na lista
-				const currentIndex = this.props.procedures.findIndex(p => p.name === currentProcedure?.name);
-				const nextProc = this.props.procedures[currentIndex + 1];
-				currentProcedure = nextProc ?? null;
-			} else if (currentProcedure.type === "check") {
-				// Procedures do tipo check devem retornar o nome do procedimento seguinte
-				// Pegamos o nome e vamos até ele se existir. Se não existir, break
-				const nextProcedure = await currentProcedure.run(this.props.state.values, this.props.llm);
-				if (!nextProcedure || nextProcedure === END) break;
-				const next = procedureMap.get(nextProcedure);
-				currentProcedure = next ?? null;
-			}
-		}
+			},
+			{
+				metadata: {
+					...(this.props.options?.metadata || {}),
+					__meta_library: process.env.npm_package_name || "@cosmixclub/parsero",
+					__meta_version: process.env.npm_package_version || "0.0.0",
+				},
+				name: this.props?.options?.name || "Agente",
+				run_type: "chain",
+			},
+		);
+		await agent(this);
 
 		const outputParsed = this.props.state.parseOutput(this.props.state.values.output);
 		if (!outputParsed.success) throw new StateValidationError("O output gerado não segue o schema.");

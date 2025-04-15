@@ -7,8 +7,7 @@ import { StringOutputParser } from "@langchain/core/output_parsers";
 import { END } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 
-import { Agent, Procedure, State } from ".";
-import { InferState } from "./classes/state";
+import { Agent, InferState, Procedure, State } from ".";
 
 dotenv.config();
 
@@ -35,6 +34,10 @@ const whatNumberIs: Procedure<InferState<typeof state>, BaseChatModel> = {
 		state.output.class = output.class;
 		return state;
 	},
+	tracing: {
+		label: "O que o número é?",
+		runType: "llm",
+	},
 	type: "action",
 };
 
@@ -48,6 +51,12 @@ const agent = new Agent({
 		temperature: 0.1,
 	}),
 	options: {
+		metadata: {
+			ls_model: "gpt-4o-mini",
+			ls_provider: "openai",
+			ls_temperature: 0.1,
+		},
+		name: "Agente teste",
 		verbose: true,
 	},
 	procedures: [
@@ -58,6 +67,10 @@ const agent = new Agent({
 				const numberClass = state.output.class;
 				if (numberClass === "odd") return "isOdd";
 				return "isEven";
+			},
+			tracing: {
+				label: "Roteador",
+				runType: "parser",
 			},
 			type: "check",
 		},
@@ -72,6 +85,10 @@ const agent = new Agent({
 				state.output.explanation = output;
 				return state;
 			},
+			tracing: {
+				label: "Ímpar",
+				runType: "llm",
+			},
 			type: "action",
 		},
 		{
@@ -82,6 +99,10 @@ const agent = new Agent({
 				const output = await chain.invoke(`Gere uma explicação do motivo de '${state.input.number}' ser par.`);
 				state.output.explanation = output;
 				return state;
+			},
+			tracing: {
+				label: "Par",
+				runType: "llm",
 			},
 			type: "action",
 		},

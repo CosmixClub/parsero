@@ -1,3 +1,5 @@
+import { KVMap } from "langsmith/schemas";
+
 import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import { LLMTypeBase } from "./agent";
@@ -12,12 +14,8 @@ import { StateValuesFormat } from "./state";
  * @template StateValues - Formato dos valores de estado usados pelas procedures
  * @template LLMType - Tipo específico do modelo de linguagem passado para o procedimento
  */
-export interface ActionProcedure<StateValues extends StateValuesFormat, LLMType extends LLMTypeBase = BaseChatModel> {
-	/**
-	 * Nome único para identificação da procedure
-	 */
-	name: string;
-
+export interface ActionProcedure<StateValues extends StateValuesFormat, LLMType extends LLMTypeBase = BaseChatModel>
+	extends BaseProcedure {
 	/**
 	 * Nome da próxima procedure que deve ser executada.
 	 *
@@ -47,6 +45,37 @@ export interface ActionProcedure<StateValues extends StateValuesFormat, LLMType 
 }
 
 /**
+ * Interface base para todas as procedures, tanto `ActionProcedure` quanto `CheckProcedure`.
+ */
+export interface BaseProcedure {
+	/**
+	 * Nome único para identificação da procedure
+	 */
+	name: string;
+
+	/**
+	 * Opções de tracing para a integração com o LangSmith
+	 */
+	tracing?: {
+		/**
+		 * Nome do procedimento a ser rastreado. Sobrescreve o nome padrão
+		 */
+		label?: string;
+
+		/**
+		 * Metadados adicionais para o procedimento. Pode ser usado para rastreamento
+		 * ou para fornecer informações extras sobre a execução.
+		 */
+		metadata?: KVMap;
+
+		/**
+		 * Tipo da execução procedimento a ser rastreado. Default: `"tool"`
+		 */
+		runType?: "chain" | "embedding" | "llm" | "parser" | "prompt" | "retriever" | "tool";
+	};
+}
+
+/**
  * Representa uma procedure do tipo "Check", cujo objetivo é **não alterar** o estado,
  * mas sim decidir qual será a próxima procedure.
  *
@@ -56,12 +85,8 @@ export interface ActionProcedure<StateValues extends StateValuesFormat, LLMType 
  * @template StateValues - Formato dos valores de estado usados pelas procedures
  * @template LLMType - Tipo específico do modelo de linguagem passado para o procedimento
  */
-export interface CheckProcedure<StateValues extends StateValuesFormat, LLMType extends LLMTypeBase = BaseChatModel> {
-	/**
-	 * Nome único para identificação da procedure
-	 */
-	name: string;
-
+export interface CheckProcedure<StateValues extends StateValuesFormat, LLMType extends LLMTypeBase = BaseChatModel>
+	extends BaseProcedure {
 	/**
 	 * Método responsável por verificar/analisar o estado atual e retornar
 	 * o nome da próxima procedure a ser executada.

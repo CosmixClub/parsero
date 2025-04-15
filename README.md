@@ -25,6 +25,9 @@
         - [Exemplo 3: Fluxo personalizado com `nextProcedure`](#exemplo-3-fluxo-personalizado-com-nextprocedure)
         - [Exemplo 4: Utilizando múltiplos modelos para tarefas especializadas](#exemplo-4-utilizando-múltiplos-modelos-para-tarefas-especializadas)
         - [Exemplo 5: Combinando diferentes famílias de modelos](#exemplo-5-combinando-diferentes-famílias-de-modelos)
+    - [Observabilidade e Integração com LangSmith](#observabilidade-e-integração-com-langsmith)
+        - [Como funciona](#como-funciona-2)
+        - [Exemplo de uso com observabilidade](#exemplo-de-uso-com-observabilidade)
 
 ---
 
@@ -836,6 +839,55 @@ const technicalResult = await agent.run({
 ```
 
 > Este exemplo mostra um agente sofisticado que roteia consultas para diferentes modelos com base no tipo de pergunta, utilizando os pontos fortes de cada modelo.
+
+---
+
+## Observabilidade e Integração com LangSmith
+
+O Parsero possui integração nativa com o [LangSmith](https://docs.smith.langchain.com/observability), a plataforma de observabilidade da LangChain. Isso permite rastrear, inspecionar e depurar a execução dos agentes, procedures e fluxos de decisão de forma detalhada.
+
+### Como funciona
+
+- Toda execução do agente (`agent.run(...)`) é automaticamente rastreada pelo LangSmith, incluindo cada procedure executada, entradas, saídas, erros e metadados.
+- Você pode customizar o rastreamento de cada procedure usando a propriedade `tracing`:
+    - `label`: nome amigável para exibição na interface do LangSmith.
+    - `runType`: tipo da execução (ex: "llm", "parser", "tool", etc).
+    - `metadata`: metadados extras para facilitar a análise.
+- O agente também aceita metadados globais via `options.metadata`.
+- Para visualizar os rastreamentos, basta configurar as variáveis de ambiente do LangSmith (ex: `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`, etc).
+
+### Exemplo de uso com observabilidade
+
+```ts
+const agent = new Agent({
+	// ...outros parâmetros...
+	procedures: [
+		{
+			name: "classify",
+			type: "action",
+			tracing: {
+				label: "Classificação do texto",
+				runType: "llm",
+				metadata: { etapa: "classificação" },
+			},
+			async run(state, llm) {
+				// ...
+				return state;
+			},
+		},
+		// ...outras procedures...
+	],
+	options: {
+		metadata: { projeto: "meu-agente" },
+		name: "Agente de exemplo",
+	},
+});
+
+await agent.run({ text: "Exemplo" });
+// A execução será rastreada e poderá ser inspecionada no painel do LangSmith
+```
+
+> Para detalhes sobre configuração, variáveis de ambiente e análise dos rastreamentos, consulte a [documentação oficial do LangSmith](https://docs.smith.langchain.com/observability).
 
 ---
 

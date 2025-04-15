@@ -1,5 +1,3 @@
-import { Agent } from "./classes/agent";
-import { InferState, State, type StateValuesFormat } from "./classes/state";
-
-export { Agent, InferState, State, StateValuesFormat };
-export type { ActionProcedure, CheckProcedure, Procedure } from "./classes/procedure";
+export { Agent } from "./classes/agent";
+export type { ActionProcedure, BaseProcedure, CheckProcedure, Procedure } from "./classes/procedure";
+export { type InferState, State, type StateValuesFormat } from "./classes/state";

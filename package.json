@@ -1,11 +1,11 @@
 {
 	"name": "@cosmixclub/parsero",
-	"version": "1.1.2",
+	"version": "1.2.0",
 	"description": "Construtor de agentes de IA de maneira simplificada.",
 	"author": "Gepetojj <contato.gepetojj@gmail.com>",
 	"license": "MIT",
 	"main": "dist/index.js",
-	"packageManager": "pnpm@10.8.0",
+	"packageManager": "pnpm@10.8.1",
 	"keywords": [
 		"crewai",
 		"langchain",
@@ -54,18 +54,20 @@
 			"esbuild"
 		]
 	},
+	"dependencies": {
+		"langsmith": "^0.3.16"
+	},
 	"peerDependencies": {
 		"@langchain/core": ">=0.3.0 <0.4.0",
 		"@langchain/langgraph": "^0.2.10",
 		"zod": "^3.20.0"
 	},
 	"devDependencies": {
-		"@langchain/core": "0.3.44",
-		"@langchain/langgraph": "^0.2.63",
-		"zod": "^3.24.2",
 		"@arethetypeswrong/cli": "^0.17.4",
-		"@changesets/cli": "^2.28.1",
+		"@changesets/cli": "^2.29.1",
 		"@langchain/community": "^0.3.40",
+		"@langchain/core": "0.3.44",
+		"@langchain/langgraph": "^0.2.64",
 		"@langchain/openai": "^0.5.5",
 		"@trivago/prettier-plugin-sort-imports": "^5.2.2",
 		"@types/node": "^22.14.1",
@@ -85,7 +87,8 @@
 		"tsup": "^8.4.0",
 		"tsx": "^4.19.3",
 		"typescript": "^5.8.3",
-		"vitest": "^3.1.1"
+		"vitest": "^3.1.1",
+		"zod": "^3.24.2"
 	},
 	"config": {
 		"commitizen": {
